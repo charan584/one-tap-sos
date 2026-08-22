@@ -3,34 +3,26 @@ const mongoose = require('mongoose');
 let isConnected = false;
 
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI;
-  if (!uri || uri.includes('127.0.0.1') || uri.includes('localhost')) {
-    // Try local connect quickly with 1000ms timeout
-    try {
-      const conn = await mongoose.connect(uri || 'mongodb://127.0.0.1:27017/campussos', {
-        serverSelectionTimeoutMS: 1000,
-        connectTimeoutMS: 1000,
-      });
-      isConnected = true;
-      console.log(`✅ [MongoDB] Connected to: ${conn.connection.host}`);
-      return true;
-    } catch (err) {
-      isConnected = false;
-      console.log(`⚡ [CampusSOS Engine] Running in high-speed In-Memory Resilient Store Mode (All Mongoose models, JWT, Socket.IO live).`);
-      return false;
-    }
+  let uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/campussos';
+  
+  // Format URI if ends with trailing slash e.g. mongodb://localhost:27017/
+  if (uri.endsWith('/')) {
+    uri = `${uri}campussos`;
+  } else if (!uri.includes('27017/') && uri.endsWith(':27017')) {
+    uri = `${uri}/campussos`;
   }
 
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 2000,
+      serverSelectionTimeoutMS: 3000,
     });
     isConnected = true;
-    console.log(`✅ [MongoDB Atlas] Connected to: ${conn.connection.host}`);
+    console.log(`✅ [MongoDB] Connected successfully to Database: "${conn.connection.name}" at host: ${conn.connection.host}:${conn.connection.port}`);
     return true;
   } catch (error) {
     isConnected = false;
-    console.log(`⚡ [CampusSOS Engine] Running in In-Memory Mode.`);
+    console.log(`⚠️ [MongoDB] Local connection note: (${error.message}).`);
+    console.log(`⚡ [CampusSOS Engine] Running with Mongoose models & In-Memory high-speed synchronization.`);
     return false;
   }
 };

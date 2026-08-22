@@ -1,20 +1,28 @@
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 
-// Standard Campus Anchor Coordinates (Stanford-inspired layout)
-// Center: Lat 37.4275, Lng -122.1697
+// Mongoose Models
+const Student = require('../models/Student');
+const Administrator = require('../models/Administrator');
+const Emergency = require('../models/Emergency');
+const EmergencyLog = require('../models/EmergencyLog');
+const Responder = require('../models/Responder');
+const Location = require('../models/Location');
+const Notification = require('../models/Notification');
+
+// Standard Campus Anchor Coordinates
 const CAMPUS_LOCATIONS = [
-  { id: 'loc-1', name: 'Main Campus Quad', code: 'QUAD', category: 'Academic', latitude: 37.4275, longitude: -122.1697, radiusMeters: 80, securityPostContact: '+1 (555) 019-2834' },
-  { id: 'loc-2', name: 'Green Library (2nd Floor)', code: 'LIB2', category: 'Library', latitude: 37.4268, longitude: -122.1662, radiusMeters: 60, securityPostContact: '+1 (555) 019-2835' },
-  { id: 'loc-3', name: 'Gates Computer Science Building', code: 'GATES', category: 'Academic', latitude: 37.4300, longitude: -122.1732, radiusMeters: 75, securityPostContact: '+1 (555) 019-2836' },
-  { id: 'loc-4', name: 'Hostel Block C (East Residence)', code: 'HOSTEL_C', category: 'Hostel', latitude: 37.4240, longitude: -122.1740, radiusMeters: 90, securityPostContact: '+1 (555) 019-2837' },
-  { id: 'loc-5', name: 'Sports & Aquatic Recreation Complex', code: 'SPORTS', category: 'Sports', latitude: 37.4315, longitude: -122.1620, radiusMeters: 120, securityPostContact: '+1 (555) 019-2838' },
-  { id: 'loc-6', name: 'Vaden Campus Health Center (Infirmary)', code: 'HEALTH', category: 'Medical', latitude: 37.4230, longitude: -122.1660, radiusMeters: 70, securityPostContact: '+1 (555) 019-9110' },
-  { id: 'loc-7', name: 'Campus Safety & Police HQ', code: 'POLICE_HQ', category: 'Security', latitude: 37.4250, longitude: -122.1610, radiusMeters: 100, securityPostContact: '+1 (555) 019-9111' },
+  { name: 'Main Campus Quad', code: 'QUAD', category: 'Academic', latitude: 37.4275, longitude: -122.1697, radiusMeters: 80, securityPostContact: '+1 (555) 019-2834' },
+  { name: 'Green Library (2nd Floor)', code: 'LIB2', category: 'Library', latitude: 37.4268, longitude: -122.1662, radiusMeters: 60, securityPostContact: '+1 (555) 019-2835' },
+  { name: 'Gates Computer Science Building', code: 'GATES', category: 'Academic', latitude: 37.4300, longitude: -122.1732, radiusMeters: 75, securityPostContact: '+1 (555) 019-2836' },
+  { name: 'Hostel Block C (East Residence)', code: 'HOSTEL_C', category: 'Hostel', latitude: 37.4240, longitude: -122.1740, radiusMeters: 90, securityPostContact: '+1 (555) 019-2837' },
+  { name: 'Sports & Aquatic Recreation Complex', code: 'SPORTS', category: 'Sports', latitude: 37.4315, longitude: -122.1620, radiusMeters: 120, securityPostContact: '+1 (555) 019-2838' },
+  { name: 'Vaden Campus Health Center (Infirmary)', code: 'HEALTH', category: 'Medical', latitude: 37.4230, longitude: -122.1660, radiusMeters: 70, securityPostContact: '+1 (555) 019-9110' },
+  { name: 'Campus Safety & Police HQ', code: 'POLICE_HQ', category: 'Security', latitude: 37.4250, longitude: -122.1610, radiusMeters: 100, securityPostContact: '+1 (555) 019-9111' },
 ];
 
 const INITIAL_RESPONDERS = [
   {
-    _id: 'resp-1',
     name: 'Officer Marcus Vance',
     callSign: 'PATROL-ALPHA',
     role: 'Campus Security Patrol',
@@ -25,7 +33,6 @@ const INITIAL_RESPONDERS = [
     activeIncidentId: null,
   },
   {
-    _id: 'resp-2',
     name: 'Officer Priya Sharma',
     callSign: 'PATROL-BRAVO',
     role: 'Campus Security Patrol',
@@ -36,7 +43,6 @@ const INITIAL_RESPONDERS = [
     activeIncidentId: null,
   },
   {
-    _id: 'resp-3',
     name: 'Paramedic Dr. Jason Lee',
     callSign: 'MEDIC-ONE',
     role: 'Rapid Medical Response',
@@ -47,7 +53,6 @@ const INITIAL_RESPONDERS = [
     activeIncidentId: null,
   },
   {
-    _id: 'resp-4',
     name: 'Nurse Ellen Rodriguez',
     callSign: 'MEDIC-TWO',
     role: 'Rapid Medical Response',
@@ -58,7 +63,6 @@ const INITIAL_RESPONDERS = [
     activeIncidentId: null,
   },
   {
-    _id: 'resp-5',
     name: 'Dispatcher Sarah Jenkins',
     callSign: 'DISPATCH-LEAD',
     role: 'Administration Dispatch',
@@ -70,16 +74,20 @@ const INITIAL_RESPONDERS = [
   }
 ];
 
-class MemoryStore {
+class UnifiedDataStore {
   constructor() {
     this.students = [];
     this.admins = [];
     this.emergencies = [];
     this.emergencyLogs = [];
-    this.responders = [...INITIAL_RESPONDERS];
-    this.locations = [...CAMPUS_LOCATIONS];
+    this.responders = [...INITIAL_RESPONDERS.map((r, i) => ({ _id: `resp-${i+1}`, ...r }))];
+    this.locations = [...CAMPUS_LOCATIONS.map((l, i) => ({ id: `loc-${i+1}`, ...l }))];
     this.notifications = [];
     this.initialized = false;
+  }
+
+  isMongoActive() {
+    return mongoose.connection.readyState === 1;
   }
 
   async init() {
@@ -88,8 +96,8 @@ class MemoryStore {
     const hashedPassword = await bcrypt.hash('password123', 10);
     const hashedAdminPassword = await bcrypt.hash('admin123', 10);
 
-    // Pre-seeded Students
-    this.students = [
+    // Initial Students
+    const defaultStudents = [
       {
         _id: 'std-1',
         name: 'Alex Rivera',
@@ -106,7 +114,7 @@ class MemoryStore {
         medicalConditions: 'Severe Penicillin Allergy • Mild Exercise-Induced Asthma (Carries Inhaler)',
         profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
         role: 'student',
-        createdAt: new Date('2025-01-10T08:00:00Z'),
+        createdAt: new Date(),
       },
       {
         _id: 'std-2',
@@ -124,7 +132,7 @@ class MemoryStore {
         medicalConditions: 'Type 1 Diabetes (CGM wearer)',
         profilePhoto: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
         role: 'student',
-        createdAt: new Date('2025-02-14T09:30:00Z'),
+        createdAt: new Date(),
       },
       {
         _id: 'std-3',
@@ -142,12 +150,12 @@ class MemoryStore {
         medicalConditions: 'None reported / Healthy',
         profilePhoto: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300&auto=format&fit=crop&q=80',
         role: 'student',
-        createdAt: new Date('2025-03-01T11:00:00Z'),
+        createdAt: new Date(),
       }
     ];
 
-    // Pre-seeded Administrators
-    this.admins = [
+    // Initial Administrators
+    const defaultAdmins = [
       {
         _id: 'adm-1',
         name: 'Chief Sarah Jenkins',
@@ -157,7 +165,7 @@ class MemoryStore {
         role: 'Chief Security Officer',
         department: 'Campus Safety & Emergency Operations Center',
         phone: '+1 (555) 911-0101',
-        createdAt: new Date('2024-01-01T00:00:00Z'),
+        createdAt: new Date(),
       },
       {
         _id: 'adm-2',
@@ -168,141 +176,141 @@ class MemoryStore {
         role: 'Medical Response Officer',
         department: 'Student Health & Urgent Care',
         phone: '+1 (555) 911-0102',
-        createdAt: new Date('2024-01-01T00:00:00Z'),
+        createdAt: new Date(),
       }
     ];
 
-    // Pre-seeded Sample Historical Emergency for rich analytics display
-    this.emergencies = [
-      {
-        _id: 'emg-demo-hist-1',
-        student: 'std-2',
-        studentSnapshot: {
-          name: 'Samantha Chen',
-          studentId: 'STU-2023-7729',
-          email: 'samantha.chen@campus.edu',
-          mobile: '+1 (555) 234-8890',
-          emergencyContactName: 'David Chen (Father)',
-          emergencyContactNumber: '+1 (555) 771-0021',
-          department: 'Biomedical Engineering',
-          year: '4th Year',
-          hostelOrDayScholar: 'Hostel Block A',
-          bloodGroup: 'A+',
-          medicalConditions: 'Type 1 Diabetes (CGM wearer)',
-          profilePhoto: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
-        },
-        location: {
-          latitude: 37.4268,
-          longitude: -122.1662,
-          accuracy: 4,
-          zone: 'Green Library (2nd Floor)',
-          address: '571 Escondido Mall, Stanford, CA',
-          googleMapsUrl: 'https://maps.google.com/?q=37.4268,-122.1662',
-        },
-        status: 'Resolved',
-        priority: 'High',
-        assignedResponders: [
-          {
-            responderId: 'resp-2',
-            name: 'Officer Priya Sharma',
-            role: 'Campus Security Patrol',
-            callSign: 'PATROL-BRAVO',
-            phone: '+1 (555) 923-1102',
-            status: 'Completed',
-            assignedAt: new Date(Date.now() - 3600000 * 24),
-            etaMinutes: 2,
-          },
-          {
-            responderId: 'resp-3',
-            name: 'Paramedic Dr. Jason Lee',
-            role: 'Rapid Medical Response',
-            callSign: 'MEDIC-ONE',
-            phone: '+1 (555) 923-1103',
-            status: 'Completed',
-            assignedAt: new Date(Date.now() - 3600000 * 24),
-            etaMinutes: 3,
-          }
-        ],
-        assignedOfficer: {
-          id: 'adm-1',
-          name: 'Chief Sarah Jenkins',
-          badgeNumber: 'CAMPUS-CHIEF-01',
-          role: 'Chief Security Officer',
-        },
-        timestamps: {
-          triggeredAt: new Date(Date.now() - 3600000 * 24),
-          acceptedAt: new Date(Date.now() - 3600000 * 24 + 18000),
-          onRouteAt: new Date(Date.now() - 3600000 * 24 + 45000),
-          arrivedAt: new Date(Date.now() - 3600000 * 24 + 120000),
-          resolvedAt: new Date(Date.now() - 3600000 * 24 + 900000),
-        },
-        resolutionNotes: 'Hypoglycemia event treated with glucose oral gel by Paramedic Lee. Student vitals stabilized and escorted to dorm.',
-        resolvedBy: 'Chief Sarah Jenkins',
-        locationHistory: [
-          { latitude: 37.4268, longitude: -122.1662, accuracy: 4, timestamp: new Date(Date.now() - 3600000 * 24) }
-        ],
-        createdAt: new Date(Date.now() - 3600000 * 24),
-        updatedAt: new Date(Date.now() - 3600000 * 24 + 900000),
+    this.students = [...defaultStudents];
+    this.admins = [...defaultAdmins];
+
+    // Sync to MongoDB if connected
+    if (this.isMongoActive()) {
+      try {
+        for (const s of defaultStudents) {
+          const { _id, ...studentDoc } = s;
+          await Student.findOneAndUpdate(
+            { email: studentDoc.email },
+            { $set: studentDoc },
+            { upsert: true, returnDocument: 'after' }
+          );
+        }
+
+        for (const a of defaultAdmins) {
+          const { _id, ...adminDoc } = a;
+          await Administrator.findOneAndUpdate(
+            { email: adminDoc.email },
+            { $set: adminDoc },
+            { upsert: true, returnDocument: 'after' }
+          );
+        }
+
+        for (const l of CAMPUS_LOCATIONS) {
+          await Location.findOneAndUpdate(
+            { code: l.code },
+            { $set: l },
+            { upsert: true, returnDocument: 'after' }
+          );
+        }
+
+        for (const r of INITIAL_RESPONDERS) {
+          await Responder.findOneAndUpdate(
+            { callSign: r.callSign },
+            { $set: r },
+            { upsert: true, returnDocument: 'after' }
+          );
+        }
+        console.log(`🗄️ [MongoDB] Successfully seeded collections: students, administrators, responders, locations.`);
+      } catch (mongoErr) {
+        console.warn('MongoDB Seed Sync Note:', mongoErr.message);
       }
-    ];
+    }
 
     this.initialized = true;
-    console.log(`🚀 [Store] Memory Store Initialized with ${this.students.length} students, ${this.admins.length} admins, ${this.responders.length} responders.`);
+    console.log(`🚀 [Store] Store Active. Students: ${this.students.length}, Admins: ${this.admins.length}, Responders: ${this.responders.length}`);
   }
 
-  // Student Methods
+  // Student Operations
   async findStudentByEmail(email) {
     await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const doc = await Student.findOne({ email: email.toLowerCase() });
+        if (doc) return doc.toObject();
+      } catch (e) {}
+    }
     return this.students.find(s => s.email.toLowerCase() === email.toLowerCase());
   }
 
   async findStudentById(id) {
     await this.init();
-    return this.students.find(s => s._id === id || s.studentId === id);
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        const doc = await Student.findById(id);
+        if (doc) return doc.toObject();
+      } catch (e) {}
+    }
+    return this.students.find(s => s._id.toString() === id.toString() || s.studentId === id);
   }
 
   async createStudent(data) {
     await this.init();
-    const newStudent = {
+    let created = {
       _id: `std-${Date.now()}`,
       ...data,
       createdAt: new Date(),
     };
-    this.students.push(newStudent);
-    return newStudent;
+
+    if (this.isMongoActive()) {
+      try {
+        const doc = await Student.create(data);
+        created = doc.toObject();
+      } catch (e) {
+        console.warn('Mongo create student note:', e.message);
+      }
+    }
+
+    this.students.push(created);
+    return created;
   }
 
   async getAllStudents() {
     await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const docs = await Student.find({}, '-password');
+        if (docs.length > 0) return docs;
+      } catch (e) {}
+    }
     return this.students.map(({ password, ...rest }) => rest);
   }
 
-  // Admin Methods
+  // Admin Operations
   async findAdminByEmail(email) {
     await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const doc = await Administrator.findOne({ email: email.toLowerCase() });
+        if (doc) return doc.toObject();
+      } catch (e) {}
+    }
     return this.admins.find(a => a.email.toLowerCase() === email.toLowerCase());
   }
 
   async findAdminById(id) {
     await this.init();
-    return this.admins.find(a => a._id === id);
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        const doc = await Administrator.findById(id);
+        if (doc) return doc.toObject();
+      } catch (e) {}
+    }
+    return this.admins.find(a => a._id.toString() === id.toString());
   }
 
-  async createAdmin(data) {
-    await this.init();
-    const newAdmin = {
-      _id: `adm-${Date.now()}`,
-      ...data,
-      createdAt: new Date(),
-    };
-    this.admins.push(newAdmin);
-    return newAdmin;
-  }
-
-  // Emergency Methods
+  // Emergency Operations
   async createEmergency(emergencyData) {
     await this.init();
-    const newEmergency = {
+    let created = {
       _id: `emg-${Date.now()}`,
       ...emergencyData,
       timestamps: {
@@ -312,44 +320,63 @@ class MemoryStore {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    this.emergencies.unshift(newEmergency);
 
-    // Create Audit Log
-    this.emergencyLogs.push({
-      _id: `log-${Date.now()}`,
-      emergencyId: newEmergency._id,
-      action: 'SOS_TRIGGERED',
-      performedBy: newEmergency.studentSnapshot?.name || 'Student',
-      details: {
-        location: newEmergency.location,
-        priority: newEmergency.priority,
-      },
-      timestamp: new Date(),
+    if (this.isMongoActive()) {
+      try {
+        const doc = await Emergency.create(emergencyData);
+        created = doc.toObject();
+      } catch (e) {
+        console.warn('Mongo create emergency note:', e.message);
+      }
+    }
+
+    this.emergencies.unshift(created);
+    await this.addEmergencyLog(created._id, 'SOS_TRIGGERED', created.studentSnapshot?.name || 'Student', {
+      location: created.location,
+      priority: created.priority,
     });
 
-    return newEmergency;
+    return created;
   }
 
   async getAllEmergencies() {
     await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const docs = await Emergency.find().sort({ createdAt: -1 });
+        if (docs.length > 0) return docs;
+      } catch (e) {}
+    }
     return this.emergencies;
-  }
-
-  async getActiveEmergencies() {
-    await this.init();
-    return this.emergencies.filter(e => ['Pending', 'Accepted', 'On Route', 'Arrived'].includes(e.status));
   }
 
   async getEmergencyById(id) {
     await this.init();
-    return this.emergencies.find(e => e._id === id);
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        const doc = await Emergency.findById(id);
+        if (doc) return doc.toObject();
+      } catch (e) {}
+    }
+    return this.emergencies.find(e => e._id.toString() === id.toString());
   }
 
   async updateEmergency(id, updateData) {
     await this.init();
-    const index = this.emergencies.findIndex(e => e._id === id);
-    if (index === -1) return null;
+    const index = this.emergencies.findIndex(e => e._id.toString() === id.toString());
+    
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        const doc = await Emergency.findByIdAndUpdate(id, { $set: updateData }, { new: true });
+        if (doc) {
+          const updatedObj = doc.toObject();
+          if (index !== -1) this.emergencies[index] = updatedObj;
+          return updatedObj;
+        }
+      } catch (e) {}
+    }
 
+    if (index === -1) return null;
     this.emergencies[index] = {
       ...this.emergencies[index],
       ...updateData,
@@ -368,38 +395,68 @@ class MemoryStore {
       details,
       timestamp: new Date(),
     };
+
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(emergencyId)) {
+      try {
+        await EmergencyLog.create({ emergencyId, action, performedBy, details });
+      } catch (e) {}
+    }
+
     this.emergencyLogs.push(log);
     return log;
   }
 
   async getEmergencyLogs(emergencyId) {
     await this.init();
-    return this.emergencyLogs.filter(l => l.emergencyId === emergencyId);
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(emergencyId)) {
+      try {
+        const docs = await EmergencyLog.find({ emergencyId }).sort({ timestamp: 1 });
+        if (docs.length > 0) return docs;
+      } catch (e) {}
+    }
+    return this.emergencyLogs.filter(l => l.emergencyId.toString() === emergencyId.toString());
   }
 
-  // Responder Methods
+  // Responders
   async getAllResponders() {
     await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const docs = await Responder.find();
+        if (docs.length > 0) return docs;
+      } catch (e) {}
+    }
     return this.responders;
   }
 
   async updateResponderStatus(id, status, activeIncidentId = null) {
     await this.init();
-    const responder = this.responders.find(r => r._id === id);
+    const responder = this.responders.find(r => r._id.toString() === id.toString());
     if (responder) {
       responder.status = status;
       responder.activeIncidentId = activeIncidentId;
     }
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        await Responder.findByIdAndUpdate(id, { $set: { status, activeIncidentId } });
+      } catch (e) {}
+    }
     return responder;
   }
 
-  // Location / Geofence Methods
+  // Locations & Geofences
   async getAllLocations() {
     await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const docs = await Location.find();
+        if (docs.length > 0) return docs;
+      } catch (e) {}
+    }
     return this.locations;
   }
 
-  // Notification Methods
+  // Notifications
   async createNotification(data) {
     await this.init();
     const notif = {
@@ -408,22 +465,26 @@ class MemoryStore {
       isRead: false,
       createdAt: new Date(),
     };
+    if (this.isMongoActive()) {
+      try {
+        await Notification.create(data);
+      } catch (e) {}
+    }
     this.notifications.unshift(notif);
     return notif;
   }
 
   async getNotifications() {
     await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const docs = await Notification.find().sort({ createdAt: -1 }).limit(50);
+        if (docs.length > 0) return docs;
+      } catch (e) {}
+    }
     return this.notifications.slice(0, 50);
-  }
-
-  async markNotificationRead(id) {
-    await this.init();
-    const notif = this.notifications.find(n => n._id === id);
-    if (notif) notif.isRead = true;
-    return notif;
   }
 }
 
-const store = new MemoryStore();
+const store = new UnifiedDataStore();
 module.exports = store;
