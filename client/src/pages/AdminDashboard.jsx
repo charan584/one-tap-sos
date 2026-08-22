@@ -13,9 +13,11 @@ import {
   Sliders,
   CheckCircle2,
   Phone,
-  Plus
+  Plus,
+  LogOut,
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
-import Navbar from '../components/common/Navbar';
 import ToastNotificationContainer from '../components/common/ToastNotificationContainer';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import MetricCards from '../components/admin/MetricCards';
@@ -30,7 +32,7 @@ import { useSound } from '../context/SoundContext';
 import { emergencyApi, dashboardApi, responderApi, authApi } from '../services/api';
 
 export const AdminDashboard = () => {
-  const { user, role, isAuthenticated, demoLogin } = useAuth();
+  const { user, role, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const { socket, joinAdminRoom } = useSocket();
   const { playDispatchAlarm, playSuccessChime } = useSound();
   const navigate = useNavigate();
@@ -48,12 +50,11 @@ export const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Auto-login Chief Sarah Jenkins if accessing admin portal directly
-  useEffect(() => {
-    if (!isAuthenticated || role !== 'admin') {
-      demoLogin('admin');
-    }
-  }, [isAuthenticated, role]);
+  const adminUser = user || {
+    name: 'Charan P',
+    badgeNumber: 'ADM-8079',
+    role: 'Administrator',
+  };
 
   // Join Admin room for real-time dispatch
   useEffect(() => {
@@ -187,7 +188,22 @@ export const AdminDashboard = () => {
     }
   };
 
-  const activeEmergencies = emergencies.filter(e => ['Pending', 'Accepted', 'On Route', 'Arrived'].includes(e.status));
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Active SOS decreases once a pending request exceeds 100 seconds
+  const activeEmergencies = emergencies.filter((emg) => {
+    if (emg.status === 'Resolved' || emg.status === 'Cancelled') return false;
+    if (emg.status === 'Pending') {
+      const triggeredAt = new Date(emg.timestamps?.triggeredAt || emg.createdAt).getTime();
+      const elapsedSec = Math.floor((now - triggeredAt) / 1000);
+      return elapsedSec <= 100;
+    }
+    return ['Accepted', 'On Route', 'Arrived'].includes(emg.status);
+  });
   const latestActiveEmergency = activeEmergencies[0] || emergencies[0];
 
   const filteredEmergencies = emergencies.filter((emg) => {
@@ -198,12 +214,17 @@ export const AdminDashboard = () => {
     return name.includes(q) || id.includes(q) || zone.includes(q);
   });
 
+  const handleLogout = () => {
+    logout();
+    navigate('/', { replace: true });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#070b14] text-slate-100 selection:bg-indigo-500 selection:text-white">
-      <Navbar />
+      {/* Toast Notification Container */}
       <ToastNotificationContainer />
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-6">
+      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-5 sm:py-6 flex flex-col lg:flex-row gap-6">
         
         {/* Left Sidebar */}
         <AdminSidebar
@@ -211,18 +232,23 @@ export const AdminDashboard = () => {
           onTabChange={setActiveTab}
           activeSosCount={activeEmergencies.length}
           onRefresh={fetchData}
+          user={user}
+          onLogout={handleLogout}
         />
 
         {/* Main Content Area */}
         <main className="flex-1 space-y-6 overflow-hidden">
           
-          {/* Top Command Bar */}
+          {/* Top Command Bar (Clean, no top website navbars) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/80 border border-slate-800 backdrop-blur-xl">
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                 <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">
                   Campus Emergency Operations Center (EOC)
+                </span>
+                <span className="text-[10px] bg-indigo-950 border border-indigo-500/30 text-indigo-300 font-semibold px-2 py-0.5 rounded-full">
+                  {user?.name || 'Administrator'}
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5">
@@ -236,7 +262,7 @@ export const AdminDashboard = () => {
               </h1>
             </div>
 
-            {/* Search Bar & Refresh */}
+            {/* Search Bar, Refresh, and Sign Out */}
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -245,32 +271,40 @@ export const AdminDashboard = () => {
                   placeholder="Filter student or zone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-slate-950/80 text-xs text-slate-200 pl-9 pr-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-indigo-500 w-48 sm:w-60"
+                  className="bg-slate-950/80 text-xs text-slate-200 pl-9 pr-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-indigo-500 w-40 sm:w-56"
                 />
               </div>
 
               <button
                 onClick={fetchData}
                 disabled={isRefreshing}
-                className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer"
                 title="Refresh Live Data"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                onClick={handleLogout}
+                title="Sign Out of Dispatch"
+                className="p-2.5 rounded-xl bg-slate-800 hover:bg-red-950/60 border border-slate-700 hover:border-red-500/40 text-slate-300 hover:text-red-300 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* Metric Cards always prominent on Overview */}
-          <MetricCards stats={stats} />
+          <MetricCards stats={stats} emergencies={emergencies} />
 
           {/* Tab 1: Command Center Overview */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
               
-              {/* Interactive Live Map */}
+              {/* Interactive Live Map (Only Admin & Student pins) */}
               <InteractiveLiveMap
                 activeEmergency={latestActiveEmergency}
-                responders={responders}
+                adminUser={adminUser}
               />
 
               {/* Real-time Live Emergency Table */}
@@ -329,7 +363,7 @@ export const AdminDashboard = () => {
             <div className="space-y-4">
               <InteractiveLiveMap
                 activeEmergency={latestActiveEmergency}
-                responders={responders}
+                adminUser={adminUser}
                 className="h-[600px]"
               />
             </div>
@@ -370,18 +404,40 @@ export const AdminDashboard = () => {
                 {emergencies.map((emg, i) => {
                   const s = emg.studentSnapshot;
                   if (!s) return null;
+                  const branchName = s.branch || s.department || 'CSE';
+                  const academicYear = s.year || '1st Year';
+                  const sectionName = s.section || 'Section A';
+                  const guardianName = s.guardianName || s.emergencyContactName || 'Guardian';
+                  const guardianPhone = s.guardianPhone || s.emergencyContactNumber || 'Not specified';
+
                   return (
-                    <div key={i} className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-3">
+                    <div key={i} className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-3.5 shadow-md">
                       <img
                         src={s.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&fit=crop'}
                         alt={s.name}
-                        className="w-12 h-12 rounded-xl object-cover ring-2 ring-slate-700"
+                        className="w-14 h-14 rounded-xl object-cover ring-2 ring-slate-700 shrink-0"
                       />
-                      <div className="space-y-1 text-xs">
-                        <div className="font-bold text-white text-sm">{s.name}</div>
-                        <div className="font-mono text-slate-400">{s.studentId} • {s.department}</div>
-                        <div className="text-red-400 font-semibold">🩸 Blood Group: {s.bloodGroup}</div>
-                        <div className="text-slate-300">Kin: {s.emergencyContactName} ({s.emergencyContactNumber})</div>
+                      <div className="space-y-1 text-xs min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <div className="font-bold text-white text-sm">{s.name}</div>
+                          <span className="font-bold text-red-400 bg-red-950/60 border border-red-800/60 px-2 py-0.5 rounded text-[10px]">
+                            🩸 {s.bloodGroup || 'O+'}
+                          </span>
+                        </div>
+                        <div className="font-mono text-indigo-300 font-semibold">
+                          ID: {s.studentId} • {branchName}
+                        </div>
+                        <div className="text-slate-400 text-[11px]">
+                          Cohort: <span className="text-slate-200 font-bold">{academicYear}</span> • Section: <span className="text-slate-200 font-bold">{sectionName}</span>
+                        </div>
+                        <div className="text-slate-300 text-[11px] pt-1 border-t border-slate-800/80">
+                          🛡️ <span className="font-semibold text-slate-200">Guardian:</span> {guardianName} (<a href={`tel:${guardianPhone}`} className="text-emerald-400 font-mono font-bold hover:underline">{guardianPhone}</a>)
+                        </div>
+                        {s.medicalConditions && (
+                          <div className="text-[10px] text-amber-300">
+                            🏥 Alerts: {s.medicalConditions}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

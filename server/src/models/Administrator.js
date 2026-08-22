@@ -19,13 +19,12 @@ const administratorSchema = new mongoose.Schema({
   },
   badgeNumber: {
     type: String,
-    required: true,
+    default: () => `ADM-${Math.floor(1000 + Math.random() * 9000)}`,
     trim: true,
   },
   role: {
     type: String,
-    enum: ['Chief Security Officer', 'Campus Dispatcher', 'Medical Response Officer', 'Administrator'],
-    default: 'Campus Dispatcher',
+    default: 'Administrator',
   },
   department: {
     type: String,

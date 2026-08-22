@@ -29,37 +29,51 @@ const studentSchema = new mongoose.Schema({
     required: [true, 'Mobile number is required'],
     trim: true,
   },
-  emergencyContactName: {
+  branch: {
     type: String,
-    required: [true, 'Emergency contact name is required'],
-    trim: true,
-  },
-  emergencyContactNumber: {
-    type: String,
-    required: [true, 'Emergency contact number is required'],
+    default: 'Computer Science & Engineering (CSE)',
     trim: true,
   },
   department: {
     type: String,
-    required: [true, 'Department is required'],
+    default: 'Computer Science & Engineering (CSE)',
     trim: true,
   },
   year: {
     type: String,
-    required: [true, 'Year of study is required'],
-    enum: ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Postgraduate', 'PhD'],
-    default: '3rd Year',
+    default: '1st Year',
+  },
+  section: {
+    type: String,
+    default: 'Section A',
+    trim: true,
+  },
+  guardianName: {
+    type: String,
+    default: 'Guardian',
+    trim: true,
+  },
+  guardianPhone: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  emergencyContactName: {
+    type: String,
+    default: 'Guardian',
+    trim: true,
+  },
+  emergencyContactNumber: {
+    type: String,
+    default: '',
+    trim: true,
   },
   hostelOrDayScholar: {
     type: String,
-    required: [true, 'Hostel or Day Scholar status is required'],
-    enum: ['Hostel Block A', 'Hostel Block B', 'Hostel Block C', 'Hostel Block D', 'Day Scholar'],
     default: 'Hostel Block A',
   },
   bloodGroup: {
     type: String,
-    required: [true, 'Blood group is required'],
-    enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
     default: 'O+',
   },
   medicalConditions: {
@@ -79,6 +93,26 @@ const studentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   }
+});
+
+// Pre-save hook to ensure guardian and emergency contact fields are in sync
+studentSchema.pre('save', function (next) {
+  if (this.guardianName && !this.emergencyContactName) {
+    this.emergencyContactName = this.guardianName;
+  }
+  if (this.guardianPhone && !this.emergencyContactNumber) {
+    this.emergencyContactNumber = this.guardianPhone;
+  }
+  if (!this.guardianName && this.emergencyContactName) {
+    this.guardianName = this.emergencyContactName;
+  }
+  if (!this.guardianPhone && this.emergencyContactNumber) {
+    this.guardianPhone = this.emergencyContactNumber;
+  }
+  if (this.branch && !this.department) {
+    this.department = this.branch;
+  }
+  next();
 });
 
 module.exports = mongoose.model('Student', studentSchema);

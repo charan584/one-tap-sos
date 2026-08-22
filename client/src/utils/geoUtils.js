@@ -1,14 +1,8 @@
-// Campus Preset Locations
-export const CAMPUS_PRESETS = [
-  { id: 'loc-1', name: 'Main Campus Quad', latitude: 37.4275, longitude: -122.1697, zone: 'Main Campus Quad' },
-  { id: 'loc-2', name: 'Green Library (2nd Floor)', latitude: 37.4268, longitude: -122.1662, zone: 'Green Library' },
-  { id: 'loc-3', name: 'Gates Computer Science Building', latitude: 37.4300, longitude: -122.1732, zone: 'Gates CS Labs' },
-  { id: 'loc-4', name: 'Hostel Block C (East Residence)', latitude: 37.4240, longitude: -122.1740, zone: 'Hostel Block C' },
-  { id: 'loc-5', name: 'Sports & Aquatic Recreation Complex', latitude: 37.4315, longitude: -122.1620, zone: 'Sports Complex' },
-  { id: 'loc-6', name: 'Vaden Health Center', latitude: 37.4230, longitude: -122.1660, zone: 'Infirmary Wing' },
-];
+// Pure Browser Native Geolocation API Utilities
+// Single source of truth using navigator.geolocation
 
 export const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
   const R = 6371e3; // metres
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
@@ -24,6 +18,7 @@ export const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 export const formatDistance = (meters) => {
+  if (!meters || isNaN(meters)) return '0m';
   if (meters < 1000) {
     return `${meters}m`;
   }
@@ -34,40 +29,105 @@ export const getGoogleMapsUrl = (lat, lng) => {
   return `https://maps.google.com/?q=${lat},${lng}`;
 };
 
-export const getCurrentPosition = () => {
+export const formatAccuracy = (accuracyMeters) => {
+  if (accuracyMeters === null || accuracyMeters === undefined || isNaN(accuracyMeters)) {
+    return 'Accuracy: Unknown';
+  }
+  return `Your location accuracy: ${Math.round(accuracyMeters)} meters`;
+};
+
+/**
+ * Obtain user's actual current device location using browser Geolocation API
+ * Single Source of Truth
+ * @returns {Promise<{ success: boolean, coords?: { latitude: number, longitude: number, accuracy: number, heading?: number, speed?: number }, error?: string, errorCode?: number }>}
+ */
+export const getDeviceLocation = () => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve({
-        latitude: 37.4275,
-        longitude: -122.1697,
-        accuracy: 5,
-        zone: 'Main Campus Quad',
-        isSimulated: true,
+        success: false,
+        error: 'Geolocation is not supported by your browser or device.',
+        errorCode: 0,
       });
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const { latitude, longitude, accuracy, heading, speed } = position.coords;
+
+        // Requirement 7: Debugging console logs
+        console.log('Device latitude:', latitude);
+        console.log('Device longitude:', longitude);
+        console.log('Location accuracy:', accuracy, 'meters');
+
         resolve({
-          latitude: Number(position.coords.latitude.toFixed(6)),
-          longitude: Number(position.coords.longitude.toFixed(6)),
-          accuracy: Math.round(position.coords.accuracy || 5),
-          zone: 'Live GPS Pinpoint',
-          isSimulated: false,
+          success: true,
+          coords: {
+            latitude,
+            longitude,
+            accuracy,
+            heading,
+            speed,
+          },
+          timestamp: position.timestamp,
         });
       },
       (error) => {
-        console.warn('Browser GPS unavailable, using Stanford Campus base coordinates:', error.message);
+        let errorMessage = 'An unknown error occurred while retrieving location.';
+        switch (error.code) {
+          case error.PERMISSION_DENIED: // Code 1
+            errorMessage = 'Location permission was denied. Please allow location access in your browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE: // Code 2
+            errorMessage = 'Location information is unavailable from your device GPS.';
+            break;
+          case error.TIMEOUT: // Code 3
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage = error.message || errorMessage;
+        }
+
+        console.error('Geolocation Error:', error.code, errorMessage);
+
         resolve({
-          latitude: 37.4275,
-          longitude: -122.1697,
-          accuracy: 5,
-          zone: 'Main Campus Quad',
-          isSimulated: true,
+          success: false,
+          error: errorMessage,
+          errorCode: error.code,
         });
       },
-      { enableHighAccuracy: true, timeout: 4000, maximumAge: 10000 }
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
+      }
     );
   });
+};
+
+/**
+ * Standard promise-based helper returning coordinates or throwing exact error
+ */
+export const getCurrentPosition = async () => {
+  const result = await getDeviceLocation();
+  if (result.success && result.coords) {
+    return {
+      latitude: result.coords.latitude,
+      longitude: result.coords.longitude,
+      accuracy: result.coords.accuracy,
+      zone: `GPS (${result.coords.latitude.toFixed(4)}, ${result.coords.longitude.toFixed(4)})`,
+      isLiveGps: true,
+    };
+  }
+  throw new Error(result.error || 'Failed to obtain device location.');
+};
+
+export default {
+  calculateDistance,
+  formatDistance,
+  getGoogleMapsUrl,
+  formatAccuracy,
+  getDeviceLocation,
+  getCurrentPosition,
 };

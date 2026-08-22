@@ -183,28 +183,36 @@ export const ActiveEmergencyRadar = ({
           </div>
 
           <div className="space-y-2">
-            {(emergency?.assignedResponders || []).map((resp, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm">
-                    {resp.role.includes('Medical') ? '🏥' : '🛡️'}
-                  </div>
-                  <div>
-                    <div className="font-bold text-white">{resp.name}</div>
-                    <div className="text-[11px] text-slate-400">{resp.callSign} • {resp.role}</div>
-                  </div>
-                </div>
+            {(emergency?.assignedResponders || []).map((resp, idx) => {
+              const role = typeof resp === 'object' ? (resp?.role || 'Security') : 'Security';
+              const name = typeof resp === 'object' ? (resp?.name || 'Patrol Unit') : String(resp || 'Patrol Unit');
+              const callSign = typeof resp === 'object' ? (resp?.callSign || 'UNIT') : 'UNIT';
+              const isMedical = role.includes('Medical');
+              const eta = typeof resp === 'object' ? (resp?.etaMinutes || 2) : 2;
 
-                <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                    ETA: ~{resp.etaMinutes || 2}m
-                  </span>
+              return (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm">
+                      {isMedical ? '🏥' : '🛡️'}
+                    </div>
+                    <div>
+                      <div className="font-bold text-white">{name}</div>
+                      <div className="text-[11px] text-slate-400">{callSign} • {role}</div>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      ETA: ~{eta}m
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

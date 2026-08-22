@@ -38,7 +38,14 @@ export const RegisterPage = () => {
     setIsSubmitting(true);
     setError('');
 
-    const res = await registerStudent(formData);
+    const trimmedEmail = (formData.email || '').toLowerCase().trim();
+    if (!trimmedEmail.endsWith('@srkrec.ac.in')) {
+      setError('Campus email must end with @srkrec.ac.in (e.g. 25b91a05q3@srkrec.ac.in).');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const res = await registerStudent({ ...formData, email: trimmedEmail });
     if (res.success) {
       navigate('/student');
     } else {
@@ -109,16 +116,27 @@ export const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-300 font-semibold block mb-1">University Email *</label>
+                  <label className="text-xs text-slate-300 font-semibold block mb-1">Campus Email (@srkrec.ac.in) *</label>
                   <input
                     type="email"
                     name="email"
                     required
-                    placeholder="e.g. alex.rivera@campus.edu"
+                    placeholder="25b91a05q3@srkrec.ac.in"
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full bg-slate-950 text-xs text-white rounded-xl p-3 border border-slate-800 focus:outline-none focus:border-red-500"
+                    className={`w-full bg-slate-950 text-xs text-white rounded-xl p-3 border focus:outline-none ${
+                      formData.email && !formData.email.toLowerCase().endsWith('@srkrec.ac.in')
+                        ? 'border-red-500/80 focus:border-red-500'
+                        : formData.email && formData.email.toLowerCase().endsWith('@srkrec.ac.in')
+                        ? 'border-emerald-500/80 focus:border-emerald-500'
+                        : 'border-slate-800 focus:border-red-500'
+                    }`}
                   />
+                  {formData.email && !formData.email.toLowerCase().endsWith('@srkrec.ac.in') && (
+                    <p className="text-[10px] text-red-400 font-medium mt-1">
+                      ⚠️ Must end with @srkrec.ac.in
+                    </p>
+                  )}
                 </div>
 
                 <div>

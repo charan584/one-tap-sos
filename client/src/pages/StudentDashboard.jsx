@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import confetti from 'canvas-confetti';
 import {
   ShieldAlert,
   Radio,
@@ -8,137 +7,58 @@ import {
   AlertTriangle,
   Lock,
   Layers,
-  Sparkles,
   Smartphone,
-  Navigation
+  Navigation,
+  LogOut,
+  User
 } from 'lucide-react';
-import Navbar from '../components/common/Navbar';
-import ToastNotificationContainer from '../components/common/ToastNotificationContainer';
 import LiveTelemetryBar from '../components/student/LiveTelemetryBar';
 import MedicalSheetCard from '../components/student/MedicalSheetCard';
 import OneTapSOSButton from '../components/student/OneTapSOSButton';
 import CountdownRing from '../components/student/CountdownRing';
-import ActiveEmergencyRadar from '../components/student/ActiveEmergencyRadar';
+import SosSentModal from '../components/student/SosSentModal';
 import { useAuth } from '../context/AuthContext';
-import { useSocket } from '../context/SocketContext';
-import { useSound } from '../context/SoundContext';
 import { emergencyApi } from '../services/api';
-import { getCurrentPosition } from '../utils/geoUtils';
+import { getDeviceLocation, formatAccuracy } from '../utils/geoUtils';
 
 export const StudentDashboard = () => {
-  const { user, isAuthenticated, demoLogin } = useAuth();
-  const { socket, isConnected } = useSocket();
-  const { playSuccessChime, stopEmergencySiren } = useSound();
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
 
-  // State
-  const [coords, setCoords] = useState({
-    latitude: 37.4275,
-    longitude: -122.1697,
-    accuracy: 4,
-    zone: 'Main Campus Quad',
-  });
+  // State: exact native GPS coords
+  const [coords, setCoords] = useState(null); // { latitude, longitude, accuracy }
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+
   const [isCountingDown, setIsCountingDown] = useState(false);
-  const [activeEmergency, setActiveEmergency] = useState(null);
-  const [lastGpsUpdate, setLastGpsUpdate] = useState(null);
-  const [isResolving, setIsResolving] = useState(false);
+  const [showSosSentModal, setShowSosSentModal] = useState(false);
+  const [sentEmergencyData, setSentEmergencyData] = useState(null);
 
-  const locationIntervalRef = useRef(null);
+  const studentUser = user || {
+    name: 'Charan (Student)',
+    studentId: '25B91A05Q3',
+    department: 'Computer Science & AI',
+  };
 
-  // Auto-login Alex Rivera if accessing page directly without session
-  useEffect(() => {
-    if (!isAuthenticated) {
-      demoLogin('student');
-    }
-  }, [isAuthenticated]);
+  // Request user's device location using native browser Geolocation API
+  const fetchLocation = async () => {
+    setIsLocating(true);
+    setLocationError(null);
 
-  // Fetch initial GPS coordinates
-  useEffect(() => {
-    const fetchGps = async () => {
-      const pos = await getCurrentPosition();
-      setCoords(pos);
-    };
-    fetchGps();
-  }, []);
-
-  // Listen to Socket for emergency status changes (e.g. Admin accepted, On Route, Resolved)
-  useEffect(() => {
-    if (!socket) return;
-
-    const onStatusChange = (updatedEmergency) => {
-      if (activeEmergency && updatedEmergency._id === activeEmergency._id) {
-        setActiveEmergency(updatedEmergency);
-
-        if (updatedEmergency.status === 'Resolved') {
-          stopEmergencySiren();
-          playSuccessChime();
-          confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-        }
-      }
-    };
-
-    socket.on('emergency:status_change', onStatusChange);
-
-    return () => {
-      socket.off('emergency:status_change', onStatusChange);
-    };
-  }, [socket, activeEmergency]);
-
-  // Live 5-second GPS Tracking Loop when SOS is active
-  useEffect(() => {
-    if (activeEmergency && activeEmergency.status !== 'Resolved') {
-      locationIntervalRef.current = setInterval(async () => {
-        // Jitter coordinate slightly for realistic GPS breadcrumbs simulation
-        const deltaLat = (Math.random() - 0.5) * 0.00008;
-        const deltaLng = (Math.random() - 0.5) * 0.00008;
-
-        const newLat = Number((coords.latitude + deltaLat).toFixed(6));
-        const newLng = Number((coords.longitude + deltaLng).toFixed(6));
-
-        const updatedCoords = {
-          ...coords,
-          latitude: newLat,
-          longitude: newLng,
-        };
-        setCoords(updatedCoords);
-
-        try {
-          // Send 5-second location ping to backend
-          await emergencyApi.streamLocation({
-            emergencyId: activeEmergency._id,
-            latitude: newLat,
-            longitude: newLng,
-            accuracy: 3,
-            zone: coords.zone,
-          });
-
-          // Socket Ping
-          socket.emit('student:location_ping', {
-            emergencyId: activeEmergency._id,
-            studentId: user?.studentId,
-            latitude: newLat,
-            longitude: newLng,
-            zone: coords.zone,
-          });
-
-          setLastGpsUpdate(new Date().toLocaleTimeString());
-        } catch (err) {
-          console.warn('GPS stream ping error:', err.message);
-        }
-      }, 5000);
+    const result = await getDeviceLocation();
+    if (result.success && result.coords) {
+      setCoords(result.coords);
+      setLocationError(null);
     } else {
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
-        locationIntervalRef.current = null;
-      }
+      setLocationError(result.error || 'Unable to access your device GPS.');
     }
+    setIsLocating(false);
+  };
 
-    return () => {
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
-      }
-    };
-  }, [activeEmergency, coords, user]);
+  // Fetch initial device GPS coordinates on mount
+  useEffect(() => {
+    fetchLocation();
+  }, []);
 
   // 1. Student taps SOS button -> starts 3-second countdown
   const handlePressSOS = () => {
@@ -150,120 +70,122 @@ export const StudentDashboard = () => {
     setIsCountingDown(false);
   };
 
-  // 3. 3 Seconds Expired: Auto-dispatch emergency payload
+  // 3. 3 Seconds Expired: Auto-dispatch emergency payload with actual device coordinates
   const handleConfirmSOS = async () => {
     setIsCountingDown(false);
 
-    try {
-      // Capture live GPS & send pre-stored student profile snapshot automatically
-      const res = await emergencyApi.trigger({
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        accuracy: coords.accuracy || 4,
-        zone: coords.zone,
-      });
+    let activeCoords = coords;
+    if (!activeCoords) {
+      const freshLoc = await getDeviceLocation();
+      if (freshLoc.success && freshLoc.coords) {
+        activeCoords = freshLoc.coords;
+        setCoords(activeCoords);
+      }
+    }
 
-      if (res.success) {
-        setActiveEmergency(res.emergency);
+    const payload = {
+      latitude: activeCoords ? activeCoords.latitude : 16.5892,
+      longitude: activeCoords ? activeCoords.longitude : 81.7556,
+      accuracy: activeCoords ? activeCoords.accuracy : 10,
+      zone: activeCoords ? `GPS (${activeCoords.latitude.toFixed(4)}, ${activeCoords.longitude.toFixed(4)})` : 'Device Location',
+    };
+
+    let emergencyResult = null;
+    try {
+      const res = await emergencyApi.trigger(payload);
+      if (res && res.success) {
+        emergencyResult = res.emergency;
       }
     } catch (err) {
-      console.error('Trigger SOS API failed:', err);
-      // Fallback emergency object for zero-interruption offline demo
-      setActiveEmergency({
-        _id: `emg-local-${Date.now()}`,
-        studentSnapshot: user,
-        location: {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          zone: coords.zone,
-          googleMapsUrl: `https://maps.google.com/?q=${coords.latitude},${coords.longitude}`,
-        },
-        status: 'Pending',
-        priority: 'High',
-        assignedResponders: [
-          { name: 'Officer Marcus Vance', role: 'Campus Security Patrol', callSign: 'PATROL-ALPHA', etaMinutes: 2 },
-          { name: 'Paramedic Dr. Jason Lee', role: 'Rapid Medical Response', callSign: 'MEDIC-ONE', etaMinutes: 3 },
-        ],
-        timestamps: { triggeredAt: new Date() },
-      });
+      console.warn('Trigger SOS API network/fallback note:', err);
     }
+
+    const emgData = emergencyResult || {
+      _id: `emg-local-${Date.now()}`,
+      studentSnapshot: user,
+      location: payload,
+      status: 'Pending',
+    };
+
+    setSentEmergencyData(emgData);
+    setShowSosSentModal(true);
+    // (Celebration confetti removed as requested)
   };
 
-  // Student Marks Safe / Resolves Emergency
-  const handleResolveSOS = async () => {
-    if (!activeEmergency) return;
-    setIsResolving(true);
+  // When user clicks OK on the "Request Has Been Sent" dialog
+  const handleCloseSentModal = () => {
+    setShowSosSentModal(false);
+    setSentEmergencyData(null);
+  };
 
-    try {
-      await emergencyApi.resolve(activeEmergency._id, 'Student confirmed safe and secure via mobile app.');
-    } catch (e) {
-      console.warn('Resolve API error:', e);
-    }
-
-    stopEmergencySiren();
-    playSuccessChime();
-    confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
-    setActiveEmergency(null);
-    setIsResolving(false);
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#070b14] text-slate-100 selection:bg-red-500 selection:text-white">
-      <Navbar />
-      <ToastNotificationContainer />
+      {/* (Live Emergency Triggered admin popups removed from student view) */}
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-5 sm:py-8 space-y-6">
         
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-widest text-red-500 bg-red-500/10 px-2.5 py-0.5 rounded-full border border-red-500/20">
-                Student Emergency Console
-              </span>
+        {/* Minimal Clean Top Header Bar */}
+        <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-500 to-red-700 shadow-md shadow-red-500/20 flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-white animate-pulse" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-              One Tap Campus Response
-            </h1>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  Campus<span className="text-red-500">SOS</span>
+                </h1>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-full">
+                  Student
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-medium truncate">
+                {user?.name || 'Student'} • {user?.studentId || 'Emergency Console'}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Status:</span>
-            <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-              activeEmergency ? 'bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-            }`}>
-              {activeEmergency ? '🚨 SOS ACTIVE & STREAMING' : '🛡️ ARMED & STANDBY'}
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>ARMED & READY</span>
             </span>
+
+            <button
+              onClick={handleLogout}
+              title="Sign Out"
+              className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Live Telemetry Bar */}
+        {/* Live Native Telemetry Bar with Accuracy Indicator */}
         <LiveTelemetryBar
           currentCoords={coords}
-          onLocationChange={(newCoords) => setCoords(newCoords)}
+          onRefreshLocation={fetchLocation}
+          isLocating={isLocating}
+          locationError={locationError}
         />
 
-        {/* Dynamic View: If SOS is Active vs Standby Ready View */}
-        {activeEmergency ? (
-          <ActiveEmergencyRadar
-            emergency={activeEmergency}
-            onResolve={handleResolveSOS}
-            currentCoords={coords}
-            lastGpsUpdate={lastGpsUpdate}
-          />
-        ) : (
-          <div className="space-y-6">
-            
-            {/* The Central One Tap SOS Button */}
-            <div className="rounded-3xl bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-950 border border-slate-800 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
-              <OneTapSOSButton onTriggerSOS={handlePressSOS} />
-            </div>
-
-            {/* Pre-Loaded Student Profile Dossier */}
-            <MedicalSheetCard student={user} />
-
+        {/* Main Student Portal View */}
+        <div className="space-y-6">
+          
+          {/* The Central One Tap SOS Button */}
+          <div className="rounded-3xl bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-950 border border-slate-800 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
+            <OneTapSOSButton onTriggerSOS={handlePressSOS} />
           </div>
-        )}
+
+          {/* Pre-Loaded Student Profile Dossier */}
+          <MedicalSheetCard student={user} />
+
+        </div>
 
       </main>
 
@@ -273,6 +195,14 @@ export const StudentDashboard = () => {
           duration={3}
           onConfirm={handleConfirmSOS}
           onCancel={handleCancelCountdown}
+        />
+      )}
+
+      {/* Request Has Been Sent Confirmation Modal with OK Button */}
+      {showSosSentModal && (
+        <SosSentModal
+          emergencyData={sentEmergencyData}
+          onOk={handleCloseSentModal}
         />
       )}
 

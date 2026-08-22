@@ -25,7 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useSound } from '../context/SoundContext';
 import { emergencyApi, dashboardApi, responderApi } from '../services/api';
-import { getCurrentPosition } from '../utils/geoUtils';
+import { getDeviceLocation } from '../utils/geoUtils';
 import confetti from 'canvas-confetti';
 
 export const SplitDemoPage = () => {
@@ -48,15 +48,20 @@ export const SplitDemoPage = () => {
     profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   });
 
-  const [coords, setCoords] = useState({
-    latitude: 37.4275,
-    longitude: -122.1697,
-    accuracy: 4,
-    zone: 'Main Campus Quad',
-  });
+  const [coords, setCoords] = useState(null);
   const [isCountingDown, setIsCountingDown] = useState(false);
   const [activeEmergency, setActiveEmergency] = useState(null);
   const [lastGpsUpdate, setLastGpsUpdate] = useState(null);
+
+  useEffect(() => {
+    const fetchLocation = async () => {
+      const res = await getDeviceLocation();
+      if (res.success && res.coords) {
+        setCoords(res.coords);
+      }
+    };
+    fetchLocation();
+  }, []);
 
   // Admin State
   const [emergencies, setEmergencies] = useState([]);

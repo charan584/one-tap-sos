@@ -9,6 +9,7 @@ const EmergencyLog = require('../models/EmergencyLog');
 const Responder = require('../models/Responder');
 const Location = require('../models/Location');
 const Notification = require('../models/Notification');
+const OTP = require('../models/OTP');
 
 // Standard Campus Anchor Coordinates
 const CAMPUS_LOCATIONS = [
@@ -96,59 +97,71 @@ class UnifiedDataStore {
     const hashedPassword = await bcrypt.hash('password123', 10);
     const hashedAdminPassword = await bcrypt.hash('admin123', 10);
 
-    // Initial Students
+    // Initial Students with @srkrec.ac.in Domain
     const defaultStudents = [
       {
         _id: 'std-1',
-        name: 'Alex Rivera',
-        studentId: 'STU-2024-8841',
-        email: 'alex.rivera@campus.edu',
+        name: 'Charan (Student)',
+        studentId: '25B91A05Q3',
+        email: '25b91a05q3@srkrec.ac.in',
         password: hashedPassword,
-        mobile: '+1 (555) 438-9921',
-        emergencyContactName: 'Elena Rivera (Mother)',
-        emergencyContactNumber: '+1 (555) 993-4412',
-        department: 'Computer Science & AI',
-        year: '3rd Year',
+        mobile: '9908446898',
+        guardianName: 'P Venkata Rao (Father)',
+        guardianPhone: '9440123456',
+        emergencyContactName: 'P Venkata Rao (Father)',
+        emergencyContactNumber: '9440123456',
+        branch: 'Computer Science & Engineering (CSE)',
+        department: 'Computer Science & Engineering (CSE)',
+        year: '1st Year',
+        section: 'Section A',
         hostelOrDayScholar: 'Hostel Block C',
         bloodGroup: 'O+',
-        medicalConditions: 'Severe Penicillin Allergy • Mild Exercise-Induced Asthma (Carries Inhaler)',
+        medicalConditions: 'None reported / Healthy',
         profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
         role: 'student',
         createdAt: new Date(),
       },
       {
         _id: 'std-2',
-        name: 'Samantha Chen',
-        studentId: 'STU-2023-7729',
-        email: 'samantha.chen@campus.edu',
+        name: 'Alex Rivera',
+        studentId: '25B91A05A1',
+        email: 'alex.rivera@srkrec.ac.in',
         password: hashedPassword,
-        mobile: '+1 (555) 234-8890',
-        emergencyContactName: 'David Chen (Father)',
-        emergencyContactNumber: '+1 (555) 771-0021',
-        department: 'Biomedical Engineering',
-        year: '4th Year',
-        hostelOrDayScholar: 'Hostel Block A',
-        bloodGroup: 'A+',
-        medicalConditions: 'Type 1 Diabetes (CGM wearer)',
-        profilePhoto: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
+        mobile: '+91 98765 43210',
+        guardianName: 'Elena Rivera (Mother)',
+        guardianPhone: '+91 98765 43211',
+        emergencyContactName: 'Elena Rivera (Mother)',
+        emergencyContactNumber: '+91 98765 43211',
+        branch: 'Computer Science & Engineering (CSE)',
+        department: 'Computer Science & Engineering (CSE)',
+        year: '2nd Year',
+        section: 'Section B',
+        hostelOrDayScholar: 'Hostel Block C',
+        bloodGroup: 'O+',
+        medicalConditions: 'Mild Exercise-Induced Asthma',
+        profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
         role: 'student',
         createdAt: new Date(),
       },
       {
         _id: 'std-3',
-        name: 'Liam Martinez',
-        studentId: 'STU-2025-1044',
-        email: 'liam.m@campus.edu',
+        name: 'Samantha Chen',
+        studentId: '25B91A05B2',
+        email: 'samantha.chen@srkrec.ac.in',
         password: hashedPassword,
-        mobile: '+1 (555) 876-1234',
-        emergencyContactName: 'Carlos Martinez (Brother)',
-        emergencyContactNumber: '+1 (555) 432-8765',
-        department: 'Electrical Engineering',
-        year: '2nd Year',
+        mobile: '+91 98765 43212',
+        guardianName: 'David Chen (Father)',
+        guardianPhone: '+91 98765 43213',
+        emergencyContactName: 'David Chen (Father)',
+        emergencyContactNumber: '+91 98765 43213',
+        branch: 'Artificial Intelligence & Data Science (AI & DS)',
+        department: 'Artificial Intelligence & Data Science (AI & DS)',
+        year: '3rd Year',
+        section: 'Section A',
         hostelOrDayScholar: 'Day Scholar',
-        bloodGroup: 'B-',
+        bloodGroup: 'A+',
         medicalConditions: 'None reported / Healthy',
-        profilePhoto: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300&auto=format&fit=crop&q=80',
+        profilePhoto: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
         role: 'student',
         createdAt: new Date(),
       }
@@ -307,6 +320,38 @@ class UnifiedDataStore {
     return this.admins.find(a => a._id.toString() === id.toString());
   }
 
+  async createAdmin(data) {
+    await this.init();
+    let created = {
+      _id: `adm-${Date.now()}`,
+      ...data,
+      createdAt: new Date(),
+    };
+
+    if (this.isMongoActive()) {
+      try {
+        const doc = await Administrator.create(data);
+        created = doc.toObject();
+      } catch (e) {
+        console.warn('Mongo create admin note:', e.message);
+      }
+    }
+
+    this.admins.push(created);
+    return created;
+  }
+
+  async getAllAdmins() {
+    await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const docs = await Administrator.find({}, '-password');
+        if (docs.length > 0) return docs.map(d => d.toObject ? d.toObject() : d);
+      } catch (e) {}
+    }
+    return this.admins.map(({ password, ...rest }) => rest);
+  }
+
   // Emergency Operations
   async createEmergency(emergencyData) {
     await this.init();
@@ -431,7 +476,8 @@ class UnifiedDataStore {
 
   async updateResponderStatus(id, status, activeIncidentId = null) {
     await this.init();
-    const responder = this.responders.find(r => r._id.toString() === id.toString());
+    if (!id) return null;
+    const responder = this.responders.find(r => r && r._id && r._id.toString() === id.toString());
     if (responder) {
       responder.status = status;
       responder.activeIncidentId = activeIncidentId;
@@ -483,6 +529,86 @@ class UnifiedDataStore {
       } catch (e) {}
     }
     return this.notifications.slice(0, 50);
+  }
+
+  // OTP Operations (MongoDB + In-Memory)
+  async saveOtp(email, otp, type = 'REGISTER') {
+    await this.init();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    if (!this.otps) this.otps = [];
+
+    // Remove any previous OTP for this email and type
+    this.otps = this.otps.filter(o => !(o.email === email.toLowerCase() && o.type === type));
+    this.otps.push({ email: email.toLowerCase(), otp, type, expiresAt });
+
+    if (this.isMongoActive()) {
+      try {
+        await OTP.deleteMany({ email: email.toLowerCase(), type });
+        await OTP.create({ email: email.toLowerCase(), otp, type, expiresAt });
+      } catch (e) {
+        console.warn('MongoDB OTP save note:', e.message);
+      }
+    }
+    return true;
+  }
+
+  async verifyOtp(email, otp, type = 'REGISTER') {
+    await this.init();
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedOtp = otp.toString().trim();
+
+    if (this.isMongoActive()) {
+      try {
+        const record = await OTP.findOne({
+          email: normalizedEmail,
+          otp: normalizedOtp,
+          type,
+          expiresAt: { $gt: new Date() }
+        });
+        if (record) {
+          await OTP.deleteOne({ _id: record._id });
+          return true;
+        }
+      } catch (e) {
+        console.warn('MongoDB OTP verify note:', e.message);
+      }
+    }
+
+    if (!this.otps) this.otps = [];
+    const index = this.otps.findIndex(
+      o => o.email === normalizedEmail && o.otp === normalizedOtp && o.type === type && new Date(o.expiresAt) > new Date()
+    );
+
+    if (index !== -1) {
+      this.otps.splice(index, 1);
+      return true;
+    }
+
+    return false;
+  }
+
+  async updateStudentPassword(email, hashedPassword) {
+    await this.init();
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const student = this.students.find(s => s.email.toLowerCase() === normalizedEmail);
+    if (student) {
+      student.password = hashedPassword;
+    }
+
+    if (this.isMongoActive()) {
+      try {
+        await Student.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: { password: hashedPassword } }
+        );
+      } catch (e) {
+        console.warn('MongoDB password update note:', e.message);
+      }
+    }
+
+    return true;
   }
 }
 

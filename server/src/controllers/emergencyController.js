@@ -1,6 +1,7 @@
 const store = require('../services/store');
 const { autoAssignResponders, detectCampusZone } = require('../services/routingEngine');
 const { getIO } = require('../socket/socketHandler');
+const { sendAdminEmergencyAlertEmail } = require('../services/emailService');
 
 // POST /api/emergency
 const triggerEmergency = async (req, res) => {
@@ -27,12 +28,16 @@ const triggerEmergency = async (req, res) => {
       studentId: student.studentId,
       email: student.email,
       mobile: student.mobile,
-      emergencyContactName: student.emergencyContactName,
-      emergencyContactNumber: student.emergencyContactNumber,
-      department: student.department,
-      year: student.year,
+      branch: student.branch || student.department || 'Computer Science & Engineering (CSE)',
+      department: student.department || student.branch || 'Computer Science & Engineering (CSE)',
+      year: student.year || '1st Year',
+      section: student.section || 'Section A',
+      guardianName: student.guardianName || student.emergencyContactName || 'Guardian',
+      guardianPhone: student.guardianPhone || student.emergencyContactNumber || student.mobile || 'Not specified',
+      emergencyContactName: student.guardianName || student.emergencyContactName || 'Guardian',
+      emergencyContactNumber: student.guardianPhone || student.emergencyContactNumber || student.mobile || 'Not specified',
       hostelOrDayScholar: student.hostelOrDayScholar || 'Hostel Block A',
-      bloodGroup: student.bloodGroup,
+      bloodGroup: student.bloodGroup || 'O+',
       medicalConditions: student.medicalConditions || 'None reported / Healthy',
       profilePhoto: student.profilePhoto,
     };
@@ -96,6 +101,15 @@ const triggerEmergency = async (req, res) => {
       }
     } catch (socketErr) {
       console.warn('Socket broadcast error (non-fatal):', socketErr.message);
+    }
+
+    // Send Instant SOS Alert Email to Administrator (Non-blocking async)
+    try {
+      sendAdminEmergencyAlertEmail(createdEmergency).catch(mailErr => {
+        console.warn('Admin SOS email alert dispatch note:', mailErr.message);
+      });
+    } catch (e) {
+      console.warn('Admin email trigger exception:', e.message);
     }
 
     return res.status(201).json({

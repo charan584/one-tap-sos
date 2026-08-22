@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldAlert, Mail, Lock, LogIn, ArrowRight } from 'lucide-react';
+import { ShieldAlert, Mail, Lock, LogIn, Shield, KeyRound } from 'lucide-react';
 import Navbar from '../components/common/Navbar';
 import GlassCard from '../components/common/GlassCard';
 import { useAuth } from '../context/AuthContext';
 
 export const AdminLoginPage = () => {
-  const { loginAdmin, demoLogin } = useAuth();
+  const { loginAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [secretCode, setSecretCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -19,18 +20,19 @@ export const AdminLoginPage = () => {
     setIsLoading(true);
     setError('');
 
-    const res = await loginAdmin(email, password);
+    if (!secretCode) {
+      setError('Please enter the Administrator Master Secret Code.');
+      setIsLoading(false);
+      return;
+    }
+
+    const res = await loginAdmin(email, password, secretCode);
     if (res.success) {
       navigate('/admin');
     } else {
-      setError(res.message || 'Invalid administrator credentials');
+      setError(res.message || 'Invalid administrator credentials or secret code.');
     }
     setIsLoading(false);
-  };
-
-  const handleQuickDemo = async () => {
-    await demoLogin('admin');
-    navigate('/admin');
   };
 
   return (
@@ -87,6 +89,24 @@ export const AdminLoginPage = () => {
               </div>
             </div>
 
+            <div>
+              <label className="text-xs text-indigo-300 font-semibold block mb-1 flex items-center gap-1">
+                <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Admin Master Secret Passcode *</span>
+              </label>
+              <div className="relative">
+                <Shield className="w-4 h-4 text-indigo-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  required
+                  placeholder="Enter Admin Secret Code"
+                  value={secretCode}
+                  onChange={(e) => setSecretCode(e.target.value)}
+                  className="w-full bg-slate-950 text-xs text-indigo-200 font-mono tracking-wider rounded-xl pl-9 pr-3 py-3 border border-indigo-500/40 focus:outline-none focus:border-indigo-400 text-white"
+                />
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={isLoading}
@@ -97,22 +117,7 @@ export const AdminLoginPage = () => {
             </button>
           </form>
 
-          {/* Quick Demo 1-Click Persona Login */}
-          <div className="pt-4 border-t border-slate-800 space-y-2">
-            <button
-              type="button"
-              onClick={handleQuickDemo}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-950/40 hover:bg-indigo-900/50 border border-indigo-500/40 text-xs text-indigo-200 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm">🛡️</span>
-                <span className="font-semibold text-white">Instant Demo Login: Chief Sarah Jenkins</span>
-              </div>
-              <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
-            </button>
-          </div>
-
-          <div className="text-center text-xs text-slate-400">
+          <div className="text-center text-xs text-slate-400 pt-2 border-t border-slate-800">
             Student looking for emergency button?{' '}
             <Link to="/student" className="text-red-400 font-semibold hover:underline">
               Go to Student SOS

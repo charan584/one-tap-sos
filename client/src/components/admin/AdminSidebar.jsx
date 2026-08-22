@@ -9,7 +9,9 @@ import {
   Settings,
   Sparkles,
   RefreshCw,
-  Layers
+  Layers,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 import { seedApi } from '../../services/api';
 
@@ -18,6 +20,8 @@ export const AdminSidebar = ({
   onTabChange,
   activeSosCount = 0,
   onRefresh,
+  user,
+  onLogout,
 }) => {
   const navItems = [
     { id: 'overview', label: 'Command Center', icon: LayoutDashboard },
@@ -42,15 +46,15 @@ export const AdminSidebar = ({
       {/* Brand Header */}
       <div className="space-y-4">
         <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-600/40">
+          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md shadow-indigo-600/40 text-base">
             🛡️
           </div>
-          <div>
-            <div className="text-xs font-black uppercase tracking-wider text-slate-300">
+          <div className="truncate">
+            <div className="text-xs font-black uppercase tracking-wider text-white">
               Campus Dispatch
             </div>
-            <div className="text-[11px] text-slate-500 font-medium">
-              EOC Operations Console
+            <div className="text-[11px] text-slate-400 font-medium truncate">
+              {user?.name || 'Administrator'}
             </div>
           </div>
         </div>
@@ -64,7 +68,7 @@ export const AdminSidebar = ({
               <button
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   isActive
                     ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -90,11 +94,21 @@ export const AdminSidebar = ({
       <div className="pt-4 border-t border-slate-800 space-y-2">
         <button
           onClick={handleResetData}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition-colors cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Reset Demo Data
+          <span>Reset Demo Data</span>
         </button>
+
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-red-200 text-xs font-medium border border-red-500/30 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out Dispatch</span>
+          </button>
+        )}
 
         <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[10px] text-slate-400 text-center">
           <span className="font-bold text-slate-300">Intelligent Routing V2</span>

@@ -22,16 +22,40 @@ api.interceptors.request.use((config) => {
 });
 
 export const authApi = {
+  sendRegisterOtp: async (email, name) => {
+    const res = await api.post('/auth/send-register-otp', { email, name });
+    return res.data;
+  },
   register: async (studentData) => {
     const res = await api.post('/auth/register', studentData);
+    return res.data;
+  },
+  sendForgotPasswordOtp: async (email) => {
+    const res = await api.post('/auth/send-forgot-password-otp', { email });
+    return res.data;
+  },
+  verifyForgotPasswordOtp: async (data) => {
+    const res = await api.post('/auth/verify-forgot-password-otp', data);
     return res.data;
   },
   login: async (credentials) => {
     const res = await api.post('/auth/login', credentials);
     return res.data;
   },
-  adminLogin: async (credentials) => {
-    const res = await api.post('/auth/admin-login', credentials);
+  sendAdminLoginOtp: async (credentials) => {
+    const res = await api.post('/auth/send-admin-login-otp', credentials);
+    return res.data;
+  },
+  verifyAdminLoginOtp: async (data) => {
+    const res = await api.post('/auth/verify-admin-login-otp', data);
+    return res.data;
+  },
+  sendAdminRegisterOtp: async (data) => {
+    const res = await api.post('/auth/send-admin-register-otp', data);
+    return res.data;
+  },
+  verifyAdminRegisterOtp: async (data) => {
+    const res = await api.post('/auth/verify-admin-register-otp', data);
     return res.data;
   },
   getProfile: async () => {
@@ -70,6 +94,10 @@ export const emergencyApi = {
     return res.data;
   },
   streamLocation: async (locationPayload) => {
+    const res = await api.post('/location/update', locationPayload);
+    return res.data;
+  },
+  updateLiveLocation: async (locationPayload) => {
     const res = await api.post('/location/update', locationPayload);
     return res.data;
   },
