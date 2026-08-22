@@ -58,9 +58,19 @@ export const SocketProvider = ({ children }) => {
     };
   }, [user, role]);
 
-  const joinAdminRoom = () => {
+  const joinAdminRoom = (customAdmin) => {
+    let adminName = customAdmin?.name;
+    if (!adminName) {
+      try {
+        const stored = localStorage.getItem('campussos_admin_user');
+        if (stored) adminName = JSON.parse(stored).name;
+      } catch {}
+    }
+    if (!adminName && (user?.role === 'Administrator' || user?.badgeNumber)) {
+      adminName = user.name;
+    }
     if (socket.connected) {
-      socket.emit('join:admin', { name: user?.name });
+      socket.emit('join:admin', { name: adminName || 'Campus Dispatcher' });
     }
   };
 

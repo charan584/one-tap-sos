@@ -2,7 +2,6 @@ import React from 'react';
 import {
   LayoutDashboard,
   ShieldAlert,
-  MapPin,
   Users,
   Truck,
   BarChart3,
@@ -26,7 +25,6 @@ export const AdminSidebar = ({
   const navItems = [
     { id: 'overview', label: 'Command Center', icon: LayoutDashboard },
     { id: 'emergencies', label: 'Active SOS Alerts', icon: ShieldAlert, badge: activeSosCount },
-    { id: 'live-map', label: 'Live Incident Map', icon: MapPin },
     { id: 'responders', label: 'Responder Fleet', icon: Truck },
     { id: 'students', label: 'Student Directory', icon: Users },
     { id: 'analytics', label: 'Analytics & SLA', icon: BarChart3 },

@@ -7,6 +7,19 @@ const getDashboardStats = async (req, res) => {
     const students = await store.getAllStudents();
     const responders = await store.getAllResponders();
     const locations = await store.getAllLocations();
+    const admins = await store.getAllAdmins();
+
+    const formattedAdmins = admins.map((a, idx) => ({
+      _id: a._id || `adm-${idx}`,
+      name: a.name || 'Campus Dispatcher',
+      email: a.email || 'dispatch@campussos.edu',
+      badgeNumber: a.badgeNumber || 'ADM-DISPATCH',
+      department: a.department || 'Campus Safety & Emergency Operations',
+      role: a.role || 'Administrator',
+      status: 'Available',
+      isOnline: true,
+      lastActive: new Date(),
+    }));
 
     const activeEmergencies = emergencies.filter(e => ['Pending', 'Accepted', 'On Route', 'Arrived'].includes(e.status));
     const pendingCases = emergencies.filter(e => e.status === 'Pending');
@@ -32,30 +45,59 @@ const getDashboardStats = async (req, res) => {
     const avgRemainingSeconds = avgSeconds % 60;
     const formattedAvgResponse = `${avgMinutes}m ${avgRemainingSeconds.toString().padStart(2, '0')}s`;
 
-    // Chart Data: Weekly Emergencies
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const weeklyData = days.map((day, idx) => ({
-      day,
-      medical: idx === 2 ? 3 : idx === 4 ? 2 : idx === 6 ? 4 : 1,
-      security: idx === 1 ? 2 : idx === 3 ? 4 : idx === 5 ? 5 : 2,
-      resolved: idx === 1 ? 2 : idx === 3 ? 4 : idx === 5 ? 4 : 2,
-      total: idx === 5 ? 7 : idx === 6 ? 5 : 3,
-    }));
+    // 1. Dynamic Chart Data: Weekly Emergencies & Category Breakdown
+    const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const weeklyMap = {};
+    dayOrder.forEach(d => {
+      weeklyMap[d] = { day: d, medical: 0, security: 0, resolved: 0, total: 0 };
+    });
 
-    // Zone Breakdown
-    const zoneDistribution = [
-      { zone: 'Library', count: 12, percentage: 35 },
-      { zone: 'Hostels', count: 9, percentage: 26 },
-      { zone: 'Academic Quad', count: 7, percentage: 20 },
-      { zone: 'Sports Ground', count: 4, percentage: 12 },
-      { zone: 'Others', count: 2, percentage: 7 },
-    ];
+    // Populate day-by-day metrics from real stored emergencies
+    for (const emg of emergencies) {
+      const date = new Date(emg.timestamps?.triggeredAt || emg.createdAt || Date.now());
+      const dayName = daysOfWeek[date.getDay()];
+      if (weeklyMap[dayName]) {
+        const isMed = emg.studentSnapshot?.medicalConditions && 
+                      !emg.studentSnapshot.medicalConditions.toLowerCase().includes('none');
+        if (isMed) {
+          weeklyMap[dayName].medical++;
+        } else {
+          weeklyMap[dayName].security++;
+        }
+        weeklyMap[dayName].total++;
+        if (emg.status === 'Resolved') {
+          weeklyMap[dayName].resolved++;
+        }
+      }
+    }
 
-    // Response Time by Tier
+    const weeklyData = dayOrder.map(d => weeklyMap[d]);
+
+    // 2. Dynamic Zone Breakdown from Campus Geofence Data
+    const zoneMap = {};
+    for (const emg of emergencies) {
+      let zone = emg.location?.zone || 'Main Campus Quad';
+      if (zone.startsWith('GPS')) {
+        zone = 'SRKR CSE Complex (GPS)';
+      }
+      zoneMap[zone] = (zoneMap[zone] || 0) + 1;
+    }
+
+    const totalEmergenciesCount = emergencies.length || 1;
+    const zoneDistribution = Object.entries(zoneMap)
+      .map(([zone, count]) => ({
+        zone,
+        count,
+        percentage: Math.round((count / totalEmergenciesCount) * 100),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // 3. Response Time by Tier & SLA Benchmarks
     const tierResponseTimes = [
       { tier: 'Campus Security', avgTime: '1m 20s', compliance: '98%' },
       { tier: 'Medical Response', avgTime: '2m 10s', compliance: '95%' },
-      { tier: 'Admin Dispatch', avgTime: '0m 35s', compliance: '99%' },
+      { tier: 'Admin Dispatch (Real)', avgTime: formattedAvgResponse, compliance: avgSeconds <= 180 ? '100%' : '94%' },
     ];
 
     return res.status(200).json({
@@ -75,6 +117,7 @@ const getDashboardStats = async (req, res) => {
         tierResponseTimes,
       },
       locations,
+      administrators: formattedAdmins,
     });
   } catch (error) {
     console.error('Dashboard Stats Error:', error);

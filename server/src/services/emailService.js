@@ -114,16 +114,43 @@ const sendOtpEmail = async (toEmail, otp, type = 'REGISTER', recipientName = 'St
 };
 
 /**
- * Send High-Priority Instant SOS Alert Email to Administrator
+ * Send High-Priority Instant SOS Alert Email to ALL Administrators
  */
 const sendAdminEmergencyAlertEmail = async (emergency) => {
-  const adminEmail = process.env.EMAIL_USER || 'charanp326@gmail.com';
+  const store = require('./store');
   const student = emergency.studentSnapshot || {};
   const location = emergency.location || {};
   const lat = Number(location.latitude) || 37.4275;
   const lng = Number(location.longitude) || -122.1697;
   const mapsUrl = location.googleMapsUrl || `https://maps.google.com/?q=${lat},${lng}`;
   const timestamp = new Date(emergency.timestamps?.triggeredAt || emergency.createdAt || Date.now()).toLocaleString();
+
+  // 1. Gather all registered and active administrator emails
+  const adminEmailsSet = new Set();
+
+  // Primary system operational admin
+  const primaryAdmin = (process.env.EMAIL_USER || 'charanp326@gmail.com').toLowerCase().trim();
+  if (primaryAdmin && primaryAdmin.includes('@')) {
+    adminEmailsSet.add(primaryAdmin);
+  }
+
+  try {
+    const allAdmins = await store.getAllAdmins();
+    if (Array.isArray(allAdmins)) {
+      allAdmins.forEach((adm) => {
+        if (adm.email && typeof adm.email === 'string' && adm.email.includes('@')) {
+          adminEmailsSet.add(adm.email.toLowerCase().trim());
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Note: Could not load admins from database for broadcast:', err.message);
+  }
+
+  const targetEmails = Array.from(adminEmailsSet);
+  if (targetEmails.length === 0) {
+    targetEmails.push('charanp326@gmail.com');
+  }
 
   const subject = `🚨 URGENT SOS ALERT: Emergency Triggered by ${student.name || 'Student'} (${student.studentId || 'N/A'})`;
 
@@ -246,7 +273,7 @@ const sendAdminEmergencyAlertEmail = async (emergency) => {
 
           <div class="footer">
             CampusSOS Intelligent Emergency Operations Center (EOC)<br>
-            Automated dispatcher alert sent to administrator: <b>${adminEmail}</b><br>
+            Automated dispatcher alert broadcast to all active campus administrators.<br>
             Please accept the case within 100 seconds to comply with Campus SLA.
           </div>
         </div>
@@ -258,30 +285,45 @@ const sendAdminEmergencyAlertEmail = async (emergency) => {
   const pass = (process.env.EMAIL_PASS || '').trim().replace(/\s+/g, '');
 
   if (transporter && pass) {
-    try {
-      const info = await transporter.sendMail({
-        from: `"CampusSOS Emergency Center" <${process.env.EMAIL_USER || 'charanp326@gmail.com'}>`,
-        to: adminEmail,
-        subject,
-        html: htmlContent,
-        priority: 'high',
-      });
-      console.log(`🚨 [SOS Admin Alert Email SENT] Live email alert dispatched to ${adminEmail}. Message ID: ${info.messageId}`);
-      return { success: true, liveSent: true };
-    } catch (smtpErr) {
-      console.error(`❌ [SOS Admin Alert Email SMTP Error]: ${smtpErr.message}`);
-      return { success: false, error: smtpErr.message };
-    }
+    console.log(`📡 [SOS Broadcast] Sending emergency alerts to ${targetEmails.length} admin(s): ${targetEmails.join(', ')}`);
+    
+    const sendResults = await Promise.allSettled(
+      targetEmails.map(async (targetEmail) => {
+        try {
+          const info = await transporter.sendMail({
+            from: `"CampusSOS Emergency Center" <${process.env.EMAIL_USER || 'charanp326@gmail.com'}>`,
+            to: targetEmail,
+            subject,
+            html: htmlContent,
+            priority: 'high',
+          });
+          console.log(`🚨 [SOS Admin Alert Email SENT] Live email alert dispatched to ${targetEmail}. Message ID: ${info.messageId}`);
+          return { email: targetEmail, success: true, messageId: info.messageId };
+        } catch (smtpErr) {
+          console.error(`❌ [SOS Admin Alert Email SMTP Error for ${targetEmail}]: ${smtpErr.message}`);
+          return { email: targetEmail, success: false, error: smtpErr.message };
+        }
+      })
+    );
+
+    const successfulDeliveries = sendResults.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    return {
+      success: true,
+      liveSent: successfulDeliveries > 0,
+      totalAdmins: targetEmails.length,
+      delivered: successfulDeliveries,
+      recipients: targetEmails,
+    };
   } else {
     console.log(`\n========================================================`);
-    console.log(`🚨 [SIMULATED SOS ADMIN EMAIL ALERT]`);
-    console.log(`To: Admin (${adminEmail})`);
+    console.log(`🚨 [SIMULATED SOS ADMIN BROADCAST ALERT]`);
+    console.log(`To All Admins (${targetEmails.length}): ${targetEmails.join(', ')}`);
     console.log(`Subject: ${subject}`);
     console.log(`Student: ${student.name} (${student.studentId})`);
     console.log(`Zone: ${location.zone}`);
     console.log(`Google Maps: ${mapsUrl}`);
     console.log(`========================================================\n`);
-    return { success: true, liveSent: false };
+    return { success: true, liveSent: false, totalAdmins: targetEmails.length, recipients: targetEmails };
   }
 };
 

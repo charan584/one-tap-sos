@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShieldAlert,
-  MapPin,
   Users,
   Truck,
   BarChart3,
@@ -43,6 +42,7 @@ export const AdminDashboard = () => {
   // State
   const [emergencies, setEmergencies] = useState([]);
   const [responders, setResponders] = useState([]);
+  const [administrators, setAdministrators] = useState([]);
   const [stats, setStats] = useState(null);
   const [chartsData, setChartsData] = useState(null);
   const [studentsList, setStudentsList] = useState([]);
@@ -50,15 +50,25 @@ export const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const adminUser = user || {
-    name: 'Charan P',
-    badgeNumber: 'ADM-8079',
-    role: 'Administrator',
-  };
+  const adminUser = (() => {
+    try {
+      const storedAdmin = localStorage.getItem('campussos_admin_user');
+      if (storedAdmin) return JSON.parse(storedAdmin);
+    } catch {}
+    if (user && (user.role === 'Administrator' || user.badgeNumber)) {
+      return user;
+    }
+    return {
+      name: 'Charan P',
+      email: 'charanp326@gmail.com',
+      badgeNumber: 'ADM-8079',
+      role: 'Administrator',
+    };
+  })();
 
   // Join Admin room for real-time dispatch
   useEffect(() => {
-    joinAdminRoom();
+    joinAdminRoom(adminUser);
   }, []);
 
   // Fetch initial dashboard state
@@ -75,6 +85,7 @@ export const AdminDashboard = () => {
       if (statsRes.success) {
         setStats(statsRes.stats);
         setChartsData(statsRes.charts);
+        if (statsRes.administrators) setAdministrators(statsRes.administrators);
       }
       if (respRes.success) setResponders(respRes.responders);
     } catch (err) {
@@ -232,7 +243,7 @@ export const AdminDashboard = () => {
           onTabChange={setActiveTab}
           activeSosCount={activeEmergencies.length}
           onRefresh={fetchData}
-          user={user}
+          user={adminUser}
           onLogout={handleLogout}
         />
 
@@ -248,7 +259,7 @@ export const AdminDashboard = () => {
                   Campus Emergency Operations Center (EOC)
                 </span>
                 <span className="text-[10px] bg-indigo-950 border border-indigo-500/30 text-indigo-300 font-semibold px-2 py-0.5 rounded-full">
-                  {user?.name || 'Administrator'}
+                  🛡️ {adminUser?.name || 'Administrator'} {adminUser?.badgeNumber ? `(${adminUser.badgeNumber})` : ''}
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-white mt-0.5">
@@ -300,7 +311,7 @@ export const AdminDashboard = () => {
           {/* Tab 1: Command Center Overview */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              
+
               {/* Interactive Live Map (Only Admin & Student pins) */}
               <InteractiveLiveMap
                 activeEmergency={latestActiveEmergency}
@@ -332,6 +343,8 @@ export const AdminDashboard = () => {
               {/* Responder Fleet Overview */}
               <ResponderFleetManager
                 responders={responders}
+                administrators={administrators}
+                currentAdmin={adminUser}
                 activeEmergency={latestActiveEmergency}
                 onResponderMoved={(updatedResp) => {
                   setResponders(prev => prev.map(r => r._id === updatedResp._id ? updatedResp : r));
@@ -358,22 +371,13 @@ export const AdminDashboard = () => {
             </div>
           )}
 
-          {/* Tab 3: Dedicated Full Map */}
-          {activeTab === 'live-map' && (
-            <div className="space-y-4">
-              <InteractiveLiveMap
-                activeEmergency={latestActiveEmergency}
-                adminUser={adminUser}
-                className="h-[600px]"
-              />
-            </div>
-          )}
-
-          {/* Tab 4: Responder Fleet */}
+          {/* Tab 3: Responder Fleet */}
           {activeTab === 'responders' && (
             <div className="space-y-4">
               <ResponderFleetManager
                 responders={responders}
+                administrators={administrators}
+                currentAdmin={adminUser}
                 activeEmergency={latestActiveEmergency}
                 onResponderMoved={(updatedResp) => {
                   setResponders(prev => prev.map(r => r._id === updatedResp._id ? updatedResp : r));
