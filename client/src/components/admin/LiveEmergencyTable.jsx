@@ -339,24 +339,33 @@ export const LiveEmergencyTable = ({
                       <PriorityBadge priority={isOverdue ? 'Critical' : emg.priority} />
                     </td>
 
-                    {/* 7. Assigned Responders */}
+                    {/* 7. Assigned Officer & Responders */}
                     <td className="px-4 py-4">
                       <div className="space-y-1">
+                        {emg.assignedOfficer && emg.assignedOfficer.name && emg.assignedOfficer.name !== 'Pending Dispatch Assignment' ? (
+                          <div className="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
+                            <span className="text-[10px] px-1 py-0.2 rounded bg-indigo-950 border border-indigo-500/40 text-indigo-300">ADMIN</span>
+                            <span className="text-white truncate max-w-[120px]">{emg.assignedOfficer.name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-amber-400 font-semibold italic">Unassigned (Open for all admins)</span>
+                        )}
+
                         {(emg.assignedResponders && Array.isArray(emg.assignedResponders) && emg.assignedResponders.length > 0) ? (
                           emg.assignedResponders.slice(0, 2).map((r, i) => {
                             const rawName = typeof r === 'string' ? r : (r?.name || 'Unit');
                             const firstName = String(rawName).split(' ')[0] || 'Unit';
                             const callSign = (typeof r === 'object' ? r?.callSign : null) || 'UNIT';
                             return (
-                              <div key={i} className="text-[11px] text-slate-300 flex items-center gap-1 truncate max-w-[170px]">
-                                <span className="text-[10px]">🛡️</span>
-                                <span className="font-semibold text-white">{firstName}</span>
-                                <span className="text-slate-400 text-[10px]">({callSign})</span>
+                              <div key={i} className="text-[10px] text-slate-400 flex items-center gap-1 truncate max-w-[170px]">
+                                <span>🛡️</span>
+                                <span className="font-medium text-slate-300">{firstName}</span>
+                                <span className="text-slate-500">({callSign})</span>
                               </div>
                             );
                           })
                         ) : (
-                          <span className="text-[11px] text-slate-500 italic">Auto-routing units...</span>
+                          <span className="text-[10px] text-slate-500 italic block">Auto-routing units...</span>
                         )}
                       </div>
                     </td>
