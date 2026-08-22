@@ -22,8 +22,11 @@ export function App() {
           <SocketProvider>
             <BrowserRouter>
               <Routes>
-                {/* Landing Homepage */}
-                <Route path="/" element={<LandingPage />} />
+                {/* Default 1st Appearance: Unified Auth & Login Portal */}
+                <Route path="/" element={<LoginPage />} />
+
+                {/* Landing Showcase Homepage */}
+                <Route path="/landing" element={<LandingPage />} />
 
                 {/* Student Mobile SOS Emergency Portal */}
                 <Route path="/student" element={<StudentDashboard />} />
