@@ -265,6 +265,18 @@ class UnifiedDataStore {
     return this.students.find(s => s._id.toString() === id.toString() || s.studentId === id);
   }
 
+  async findStudentByStudentId(studentId) {
+    if (!studentId) return null;
+    await this.init();
+    if (this.isMongoActive()) {
+      try {
+        const doc = await Student.findOne({ studentId: String(studentId).toUpperCase() });
+        if (doc) return doc.toObject();
+      } catch (e) {}
+    }
+    return this.students.find(s => s.studentId?.toUpperCase() === String(studentId).toUpperCase());
+  }
+
   async createStudent(data) {
     await this.init();
     let created = {

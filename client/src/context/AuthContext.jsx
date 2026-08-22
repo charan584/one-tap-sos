@@ -78,6 +78,8 @@ export const AuthProvider = ({ children }) => {
         setUser(res.student);
         setRole('student');
         setToken(res.token);
+        localStorage.setItem('campussos_student_token', res.token);
+        localStorage.setItem('campussos_student_user', JSON.stringify(res.student));
         localStorage.setItem('campussos_token', res.token);
         localStorage.setItem('campussos_role', 'student');
         localStorage.setItem('campussos_user', JSON.stringify(res.student));
@@ -102,6 +104,8 @@ export const AuthProvider = ({ children }) => {
         setUser(res.student);
         setRole('student');
         setToken(res.token);
+        localStorage.setItem('campussos_student_token', res.token);
+        localStorage.setItem('campussos_student_user', JSON.stringify(res.student));
         localStorage.setItem('campussos_token', res.token);
         localStorage.setItem('campussos_role', 'student');
         localStorage.setItem('campussos_user', JSON.stringify(res.student));
@@ -186,6 +190,8 @@ export const AuthProvider = ({ children }) => {
         setUser(res.admin);
         setRole('admin');
         setToken(res.token);
+        localStorage.setItem('campussos_admin_token', res.token);
+        localStorage.setItem('campussos_admin_user', JSON.stringify(res.admin));
         localStorage.setItem('campussos_token', res.token);
         localStorage.setItem('campussos_role', 'admin');
         localStorage.setItem('campussos_user', JSON.stringify(res.admin));
@@ -225,6 +231,8 @@ export const AuthProvider = ({ children }) => {
         setUser(res.admin);
         setRole('admin');
         setToken(res.token);
+        localStorage.setItem('campussos_admin_token', res.token);
+        localStorage.setItem('campussos_admin_user', JSON.stringify(res.admin));
         localStorage.setItem('campussos_token', res.token);
         localStorage.setItem('campussos_role', 'admin');
         localStorage.setItem('campussos_user', JSON.stringify(res.admin));

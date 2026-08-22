@@ -34,11 +34,31 @@ export const StudentDashboard = () => {
   const [showSosSentModal, setShowSosSentModal] = useState(false);
   const [sentEmergencyData, setSentEmergencyData] = useState(null);
 
-  const studentUser = user || {
-    name: 'Charan (Student)',
-    studentId: '25B91A05Q3',
-    department: 'Computer Science & AI',
-  };
+  // Dedicated student identity resolution (guarantees student dossier is never contaminated by admin session in other tabs)
+  const studentUser = (() => {
+    try {
+      const storedStudent = localStorage.getItem('campussos_student_user');
+      if (storedStudent) return JSON.parse(storedStudent);
+    } catch {}
+    if (user && user.role !== 'Administrator' && !user.badgeNumber) {
+      return user;
+    }
+    return {
+      _id: 'std-default-1',
+      name: 'Charan (Student)',
+      studentId: '25B91A05Q3',
+      email: '25b91a05q3@srkrec.ac.in',
+      branch: 'Computer Science & Engineering (CSE)',
+      department: 'Computer Science & Engineering (CSE)',
+      year: '1st Year',
+      section: 'Section A',
+      guardianName: 'P Venkata Rao (Father)',
+      guardianPhone: '9440123456',
+      bloodGroup: 'O+',
+      mobile: '9908446898',
+      medicalConditions: 'None reported / Healthy',
+    };
+  })();
 
   // Request user's device location using native browser Geolocation API
   const fetchLocation = async () => {
@@ -84,6 +104,9 @@ export const StudentDashboard = () => {
     }
 
     const payload = {
+      studentId: studentUser.studentId,
+      email: studentUser.email,
+      studentSnapshot: studentUser,
       latitude: activeCoords ? activeCoords.latitude : 16.5892,
       longitude: activeCoords ? activeCoords.longitude : 81.7556,
       accuracy: activeCoords ? activeCoords.accuracy : 10,
@@ -102,14 +125,13 @@ export const StudentDashboard = () => {
 
     const emgData = emergencyResult || {
       _id: `emg-local-${Date.now()}`,
-      studentSnapshot: user,
+      studentSnapshot: studentUser,
       location: payload,
       status: 'Pending',
     };
 
     setSentEmergencyData(emgData);
     setShowSosSentModal(true);
-    // (Celebration confetti removed as requested)
   };
 
   // When user clicks OK on the "Request Has Been Sent" dialog

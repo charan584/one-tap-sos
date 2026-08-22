@@ -10,9 +10,29 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Inject Authorization header if token is stored
+// Inject Authorization header with role-aware token routing
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('campussos_token');
+  let token = null;
+
+  // If this is an emergency trigger or student action, prefer student token
+  if (config.url === '/emergency' && config.method === 'post') {
+    token = localStorage.getItem('campussos_student_token') || localStorage.getItem('campussos_token');
+    config.headers['x-user-role'] = 'student';
+  } else if (
+    config.url?.startsWith('/dashboard') ||
+    config.url?.includes('/accept') ||
+    config.url?.includes('/resolve') ||
+    config.url?.startsWith('/responders')
+  ) {
+    token = localStorage.getItem('campussos_admin_token') || localStorage.getItem('campussos_token');
+    config.headers['x-user-role'] = 'admin';
+  } else {
+    token =
+      localStorage.getItem('campussos_token') ||
+      localStorage.getItem('campussos_student_token') ||
+      localStorage.getItem('campussos_admin_token');
+  }
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
