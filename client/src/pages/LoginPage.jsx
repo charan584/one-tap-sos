@@ -11,7 +11,11 @@ import {
   ArrowLeft,
   KeyRound,
   UserPlus,
-  UserCheck
+  UserCheck,
+  Eye,
+  EyeOff,
+  Sparkles,
+  GraduationCap
 } from 'lucide-react';
 import GlassCard from '../components/common/GlassCard';
 import { useAuth } from '../context/AuthContext';
@@ -60,6 +64,7 @@ export const LoginPage = () => {
   // Student Login Form State
   const [studentEmail, setStudentEmail] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
+  const [showStudentPassword, setShowStudentPassword] = useState(false);
 
   // Admin Login Form State
   const [adminEmail, setAdminEmail] = useState('');
@@ -144,18 +149,24 @@ export const LoginPage = () => {
     setError('');
     setSuccessMessage('');
 
-    const trimmedEmail = (studentEmail || '').toLowerCase().trim();
-    if (!trimmedEmail.endsWith('@srkrec.ac.in')) {
-      setError('Campus email must end with @srkrec.ac.in (e.g. 25b91a05q3@srkrec.ac.in).');
+    const inputIdentifier = (studentEmail || '').trim();
+    if (!inputIdentifier) {
+      setError('Please enter your Campus Email or Student Roll Number.');
       setIsLoading(false);
       return;
     }
 
-    const res = await loginStudent(trimmedEmail, studentPassword);
+    if (!studentPassword) {
+      setError('Please enter your password.');
+      setIsLoading(false);
+      return;
+    }
+
+    const res = await loginStudent(inputIdentifier, studentPassword);
     if (res.success) {
       navigate('/student');
     } else {
-      setError(res.message || 'Invalid student credentials');
+      setError(res.message || 'Invalid student credentials. Please verify your roll number / email and password.');
     }
     setIsLoading(false);
   };
@@ -316,26 +327,20 @@ export const LoginPage = () => {
     setError('');
     setSuccessMessage('');
 
-    if (!fpEmail) {
-      setError('Please enter your registered campus email.');
+    const inputVal = (fpEmail || '').trim();
+    if (!inputVal) {
+      setError('Please enter your registered Campus Email or Student Roll Number.');
       setIsLoading(false);
       return;
     }
 
-    const trimmedEmail = (fpEmail || '').toLowerCase().trim();
-    if (!trimmedEmail.endsWith('@srkrec.ac.in')) {
-      setError('Campus email must end with @srkrec.ac.in (e.g. 25b91a05q3@srkrec.ac.in).');
-      setIsLoading(false);
-      return;
-    }
-
-    const res = await sendForgotPasswordOtp(trimmedEmail);
+    const res = await sendForgotPasswordOtp(inputVal);
     if (res.success) {
       setFpStep(2);
-      setSuccessMessage(`OTP sent to ${trimmedEmail}`);
+      setSuccessMessage(`OTP sent to ${res.email || inputVal}`);
       setResendCooldown(60);
     } else {
-      setError(res.message || 'No registered student found with this email.');
+      setError(res.message || 'No registered student found with this email or roll number.');
     }
     setIsLoading(false);
   };
@@ -430,37 +435,20 @@ export const LoginPage = () => {
               <form onSubmit={handleStudentLogin} className="space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs text-slate-300 font-semibold block">Campus Email (@srkrec.ac.in)</label>
+                    <label className="text-xs text-slate-300 font-semibold block">Campus Mail</label>
                     <span className="text-[10px] text-slate-400 font-mono">Institutional ID</span>
                   </div>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
-                      type="email"
+                      type="text"
                       required
-                      placeholder="25b91a05q3@srkrec.ac.in"
+                      placeholder="Enter college mail"
                       value={studentEmail}
                       onChange={(e) => setStudentEmail(e.target.value)}
-                      className={`w-full bg-slate-950 text-xs text-white rounded-xl pl-9 pr-3 py-3 border transition-colors focus:outline-none ${
-                        studentEmail && !studentEmail.toLowerCase().endsWith('@srkrec.ac.in')
-                          ? 'border-red-500/80 focus:border-red-500'
-                          : studentEmail && studentEmail.toLowerCase().endsWith('@srkrec.ac.in')
-                          ? 'border-emerald-500/80 focus:border-emerald-500'
-                          : 'border-slate-800 focus:border-red-500'
-                      }`}
+                      className="w-full bg-slate-950 text-xs text-white rounded-xl pl-9 pr-3 py-3 border border-slate-800 focus:outline-none focus:border-red-500 transition-colors"
                     />
                   </div>
-                  {studentEmail && !studentEmail.toLowerCase().endsWith('@srkrec.ac.in') && (
-                    <p className="text-[11px] text-red-400 font-medium mt-1 flex items-center gap-1">
-                      <span>⚠️ Must end with</span>
-                      <span className="font-mono font-bold text-red-300">@srkrec.ac.in</span>
-                    </p>
-                  )}
-                  {studentEmail && studentEmail.toLowerCase().endsWith('@srkrec.ac.in') && (
-                    <p className="text-[11px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
-                      <span>✓ Valid SRKREC campus email</span>
-                    </p>
-                  )}
                 </div>
 
                 <div>
@@ -477,13 +465,20 @@ export const LoginPage = () => {
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
-                      type="password"
+                      type={showStudentPassword ? 'text' : 'password'}
                       required
                       placeholder="••••••••"
                       value={studentPassword}
                       onChange={(e) => setStudentPassword(e.target.value)}
-                      className="w-full bg-slate-950 text-xs text-white rounded-xl pl-9 pr-3 py-3 border border-slate-800 focus:outline-none focus:border-red-500 transition-colors"
+                      className="w-full bg-slate-950 text-xs text-white rounded-xl pl-9 pr-10 py-3 border border-slate-800 focus:outline-none focus:border-red-500 transition-colors"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowStudentPassword(!showStudentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer"
+                    >
+                      {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 

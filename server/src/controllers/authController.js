@@ -148,33 +148,35 @@ const register = async (req, res) => {
 // 3. POST /api/auth/send-forgot-password-otp
 const sendForgotPasswordOtp = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, studentId, identifier } = req.body;
+    const inputIdentifier = (identifier || email || studentId || '').trim();
 
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'Email address is required.' });
+    if (!inputIdentifier) {
+      return res.status(400).json({ success: false, message: 'Campus email or Student Roll Number is required.' });
     }
 
-    const trimmedEmail = email.toLowerCase().trim();
-    if (!trimmedEmail.endsWith('@srkrec.ac.in')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Campus email must end with @srkrec.ac.in (e.g. 25b91a05q3@srkrec.ac.in).',
-      });
+    let student = await store.findStudentByEmail(inputIdentifier);
+    if (!student && !inputIdentifier.includes('@')) {
+      student = await store.findStudentByEmail(`${inputIdentifier}@srkrec.ac.in`);
     }
-
-    const student = await store.findStudentByEmail(trimmedEmail);
     if (!student) {
-      return res.status(404).json({ success: false, message: 'No registered student found with this email address.' });
+      student = await store.findStudentByStudentId(inputIdentifier);
     }
 
-    const otp = generateOtp();
-    await store.saveOtp(trimmedEmail, otp, 'FORGOT_PASSWORD');
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'No registered student found with this email or roll number.' });
+    }
 
-    const emailResult = await sendOtpEmail(trimmedEmail, otp, 'FORGOT_PASSWORD', student.name);
+    const studentEmail = student.email;
+    const otp = generateOtp();
+    await store.saveOtp(studentEmail, otp, 'FORGOT_PASSWORD');
+
+    const emailResult = await sendOtpEmail(studentEmail, otp, 'FORGOT_PASSWORD', student.name);
 
     return res.status(200).json({
       success: true,
-      message: `Password reset code sent to ${trimmedEmail} from ${SENDER_EMAIL}.`,
+      message: `Password reset code sent to ${studentEmail} from ${SENDER_EMAIL}.`,
+      email: studentEmail,
       sender: SENDER_EMAIL,
       liveSent: emailResult.liveSent,
     });
@@ -187,24 +189,36 @@ const sendForgotPasswordOtp = async (req, res) => {
 // 4. POST /api/auth/verify-forgot-password-otp (Reset Password in MongoDB)
 const verifyForgotPasswordOtp = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { email, studentId, identifier, otp, newPassword } = req.body;
+    const inputIdentifier = (identifier || email || studentId || '').trim();
 
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required.' });
+    if (!inputIdentifier || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Email/Roll Number, OTP, and new password are required.' });
     }
 
-    const trimmedEmail = email.toLowerCase().trim();
+    let student = await store.findStudentByEmail(inputIdentifier);
+    if (!student && !inputIdentifier.includes('@')) {
+      student = await store.findStudentByEmail(`${inputIdentifier}@srkrec.ac.in`);
+    }
+    if (!student) {
+      student = await store.findStudentByStudentId(inputIdentifier);
+    }
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student account not found.' });
+    }
+
     if (newPassword.length < 6) {
       return res.status(400).json({ success: false, message: 'New password must be at least 6 characters.' });
     }
 
-    const isOtpValid = await store.verifyOtp(trimmedEmail, otp, 'FORGOT_PASSWORD');
+    const isOtpValid = await store.verifyOtp(student.email, otp, 'FORGOT_PASSWORD');
     if (!isOtpValid) {
       return res.status(400).json({ success: false, message: 'Invalid or expired OTP reset code.' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await store.updateStudentPassword(trimmedEmail, hashedPassword);
+    await store.updateStudentPassword(student.email, hashedPassword);
 
     return res.status(200).json({
       success: true,
@@ -219,21 +233,21 @@ const verifyForgotPasswordOtp = async (req, res) => {
 // 5. POST /api/auth/login (Student Login)
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, studentId, identifier, password } = req.body;
+    const loginIdentifier = (identifier || email || studentId || '').trim();
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+    if (!loginIdentifier || !password) {
+      return res.status(400).json({ success: false, message: 'Campus email / Roll number and password are required.' });
     }
 
-    const trimmedEmail = email.toLowerCase().trim();
-    if (!trimmedEmail.endsWith('@srkrec.ac.in')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Campus email must end with @srkrec.ac.in (e.g. 25b91a05q3@srkrec.ac.in).',
-      });
+    let student = await store.findStudentByEmail(loginIdentifier);
+    if (!student && !loginIdentifier.includes('@')) {
+      student = await store.findStudentByEmail(`${loginIdentifier}@srkrec.ac.in`);
+    }
+    if (!student) {
+      student = await store.findStudentByStudentId(loginIdentifier);
     }
 
-    const student = await store.findStudentByEmail(trimmedEmail);
     if (!student) {
       return res.status(401).json({ success: false, message: 'Invalid student credentials or student not registered.' });
     }

@@ -244,37 +244,83 @@ class UnifiedDataStore {
 
   // Student Operations
   async findStudentByEmail(email) {
+    if (!email) return null;
     await this.init();
+    const clean = String(email).trim().toLowerCase();
+    const cleanId = String(email).trim().toUpperCase();
+
     if (this.isMongoActive()) {
       try {
-        const doc = await Student.findOne({ email: email.toLowerCase() });
+        const doc = await Student.findOne({
+          $or: [
+            { email: clean },
+            { email: { $regex: new RegExp(`^${clean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } },
+            { studentId: cleanId },
+            { studentId: { $regex: new RegExp(`^${clean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } }
+          ]
+        });
         if (doc) return doc.toObject();
       } catch (e) {}
     }
-    return this.students.find(s => s.email.toLowerCase() === email.toLowerCase());
+
+    return this.students.find(s => 
+      s.email?.toLowerCase() === clean || 
+      s.studentId?.toUpperCase() === cleanId ||
+      s.studentId?.toLowerCase() === clean
+    );
   }
 
   async findStudentById(id) {
+    if (!id) return null;
     await this.init();
-    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(id)) {
+    const cleanId = String(id).trim();
+
+    if (this.isMongoActive() && mongoose.Types.ObjectId.isValid(cleanId)) {
       try {
-        const doc = await Student.findById(id);
+        const doc = await Student.findById(cleanId);
         if (doc) return doc.toObject();
       } catch (e) {}
     }
-    return this.students.find(s => s._id.toString() === id.toString() || s.studentId === id);
+
+    if (this.isMongoActive()) {
+      try {
+        const doc = await Student.findOne({
+          $or: [
+            { studentId: cleanId.toUpperCase() },
+            { studentId: { $regex: new RegExp(`^${cleanId.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } }
+          ]
+        });
+        if (doc) return doc.toObject();
+      } catch (e) {}
+    }
+
+    return this.students.find(s => 
+      s._id?.toString() === cleanId || 
+      s.studentId?.toUpperCase() === cleanId.toUpperCase() ||
+      s.studentId?.toLowerCase() === cleanId.toLowerCase()
+    );
   }
 
   async findStudentByStudentId(studentId) {
     if (!studentId) return null;
     await this.init();
+    const cleanId = String(studentId).trim();
+
     if (this.isMongoActive()) {
       try {
-        const doc = await Student.findOne({ studentId: String(studentId).toUpperCase() });
+        const doc = await Student.findOne({
+          $or: [
+            { studentId: cleanId.toUpperCase() },
+            { studentId: { $regex: new RegExp(`^${cleanId.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } }
+          ]
+        });
         if (doc) return doc.toObject();
       } catch (e) {}
     }
-    return this.students.find(s => s.studentId?.toUpperCase() === String(studentId).toUpperCase());
+    return this.students.find(s => 
+      s.studentId?.toUpperCase() === cleanId.toUpperCase() ||
+      s.studentId?.toLowerCase() === cleanId.toLowerCase()
+    );
   }
 
   async createStudent(data) {
@@ -600,11 +646,16 @@ class UnifiedDataStore {
     return false;
   }
 
-  async updateStudentPassword(email, hashedPassword) {
+  async updateStudentPassword(identifier, hashedPassword) {
     await this.init();
-    const normalizedEmail = email.toLowerCase().trim();
+    const cleanEmail = identifier.toLowerCase().trim();
+    const cleanId = identifier.toUpperCase().trim();
 
-    const student = this.students.find(s => s.email.toLowerCase() === normalizedEmail);
+    const student = this.students.find(s => 
+      s.email.toLowerCase() === cleanEmail || 
+      s.studentId.toUpperCase() === cleanId ||
+      s.studentId.toLowerCase() === cleanEmail
+    );
     if (student) {
       student.password = hashedPassword;
     }
@@ -612,7 +663,14 @@ class UnifiedDataStore {
     if (this.isMongoActive()) {
       try {
         await Student.findOneAndUpdate(
-          { email: normalizedEmail },
+          {
+            $or: [
+              { email: cleanEmail },
+              { email: { $regex: new RegExp(`^${cleanEmail.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } },
+              { studentId: cleanId },
+              { studentId: { $regex: new RegExp(`^${cleanEmail.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } }
+            ]
+          },
           { $set: { password: hashedPassword } }
         );
       } catch (e) {

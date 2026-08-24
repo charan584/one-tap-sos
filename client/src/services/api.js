@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (
+  typeof window !== 'undefined'
+    ? `http://${window.location.hostname}:5000/api`
+    : 'http://localhost:5000/api'
+);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -50,8 +54,9 @@ export const authApi = {
     const res = await api.post('/auth/register', studentData);
     return res.data;
   },
-  sendForgotPasswordOtp: async (email) => {
-    const res = await api.post('/auth/send-forgot-password-otp', { email });
+  sendForgotPasswordOtp: async (identifier) => {
+    const payload = typeof identifier === 'string' ? { identifier, email: identifier } : identifier;
+    const res = await api.post('/auth/send-forgot-password-otp', payload);
     return res.data;
   },
   verifyForgotPasswordOtp: async (data) => {

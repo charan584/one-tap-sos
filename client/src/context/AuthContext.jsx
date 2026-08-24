@@ -70,10 +70,15 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(false);
   }, []);
 
-  const loginStudent = async (email, password) => {
+  const loginStudent = async (identifier, password) => {
     setIsLoading(true);
     try {
-      const res = await authApi.login({ email, password });
+      const res = await authApi.login({ 
+        identifier: identifier.trim(), 
+        email: identifier.trim(), 
+        studentId: identifier.trim(), 
+        password 
+      });
       if (res.success) {
         setUser(res.student);
         setRole('student');
@@ -137,10 +142,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const sendForgotPasswordOtp = async (email) => {
+  const sendForgotPasswordOtp = async (identifier) => {
     setIsLoading(true);
     try {
-      const res = await authApi.sendForgotPasswordOtp(email);
+      const res = await authApi.sendForgotPasswordOtp(identifier);
       return res;
     } catch (err) {
       return {
@@ -152,10 +157,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const verifyForgotPasswordOtp = async (email, otp, newPassword) => {
+  const verifyForgotPasswordOtp = async (identifier, otp, newPassword) => {
     setIsLoading(true);
     try {
-      const res = await authApi.verifyForgotPasswordOtp({ email, otp, newPassword });
+      const res = await authApi.verifyForgotPasswordOtp({ 
+        identifier: identifier.trim(), 
+        email: identifier.trim(), 
+        studentId: identifier.trim(), 
+        otp, 
+        newPassword 
+      });
       return res;
     } catch (err) {
       return {
